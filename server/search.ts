@@ -213,6 +213,7 @@ export async function search(
   query: string,
   external: boolean,
   provider: Provider,
+  broaden = false,
 ): Promise<SearchResult> {
   const normalized = normalize(query);
   if (!normalized)
@@ -243,7 +244,7 @@ export async function search(
       normalize(`${p.brand} ${p.name}`) === normalized ||
       p.barcode === query,
   );
-  if (preferred || exact.length === 1)
+  if (!broaden && (preferred || exact.length === 1))
     return {
       status: "matched",
       query,
@@ -277,8 +278,9 @@ export async function search(
       updatedAt: new Date().toISOString(),
     }));
   const candidates = [
+    ...(preferred && !exact.includes(preferred) ? [preferred] : []),
     ...exact,
-    ...local.filter((p) => !exact.includes(p)),
+    ...local.filter((p) => !exact.includes(p) && p !== preferred),
     ...remote,
   ].slice(0, 5);
   return {
