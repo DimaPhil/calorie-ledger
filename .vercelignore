@@ -1,0 +1,8 @@
+.local
+.env*
+coverage
+test-results
+playwright-report
+tests
+docs
+.github

@@ -1,0 +1,51 @@
+name: Deploy production
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+  deployments: write
+concurrency:
+  group: production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Skip superseded commits
+        id: current
+        env:
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          head=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$head" = "$VERIFIED_SHA" ]; then echo "deploy=true" >> "$GITHUB_OUTPUT"; fi
+      - run: npm ci
+        if: steps.current.outputs.deploy == 'true'
+      - name: Apply additive schema
+        if: steps.current.outputs.deploy == 'true'
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Deploy the verified commit
+        if: steps.current.outputs.deploy == 'true'
+        run: npx vercel@59.23.2 deploy --prod --yes --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Verify production health
+        if: steps.current.outputs.deploy == 'true'
+        run: curl --fail --silent --show-error --retry 4 --retry-delay 3 https://calorie-ledger-six.vercel.app/api/health | jq -e '.ok == true'
