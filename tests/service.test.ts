@@ -287,6 +287,29 @@ describe("food diary service", () => {
   });
 });
 describe("agent food resolution", () => {
+  it("broadens exact and remembered matches without forgetting the choice", async () => {
+    await a.run("remember_choice", {
+      query: "morning staple",
+      productId: p.id,
+    });
+    for (const query of ["Rolled oats", "morning staple"]) {
+      provider.mockClear();
+      expect((await a.run("search_products", { query })).status).toBe(
+        "matched",
+      );
+      expect(provider).not.toHaveBeenCalled();
+      const result = await a.run("search_products", { query, broaden: true });
+      expect(provider).toHaveBeenCalledWith(database, query);
+      expect(result.status).toBe("choose");
+      expect(result.candidates[0].id).toBe(p.id);
+      expect(
+        result.candidates.some((x: Product) => x.name === "External oats"),
+      ).toBe(true);
+      expect((await a.run("search_products", { query })).status).toBe(
+        "matched",
+      );
+    }
+  });
   it("matches exact local names; asks for amount; computes ready response", async () => {
     expect(
       (await a.run("search_products", { query: "Rolled oats" })).status,

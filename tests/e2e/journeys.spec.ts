@@ -116,6 +116,39 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     .click();
   await expect(page.getByText("Token revoked.", { exact: true })).toBeVisible();
 });
+test("saved matches can be broadened with the keyboard", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  await page.getByRole("button", { name: "Foods", exact: true }).click();
+  const query = `Oats ${testInfo.project.name}`;
+  await page.getByLabel("Search products").fill(query);
+  await page.getByRole("button", { name: "Search foods", exact: true }).click();
+  const broaden = page.getByRole("button", {
+    name: "Search for other matches",
+  });
+  await expect(broaden).toBeVisible();
+  // Editing the input must not silently change the query being expanded.
+  await page.getByLabel("Search products").fill("different query");
+  await broaden.focus();
+  const request = page.waitForRequest("**/api/actions/search_products");
+  await page.keyboard.press("Enter");
+  expect((await request).postDataJSON()).toEqual({ query, broaden: true });
+  await expect(
+    page.getByText("External lookup is disabled in automated tests."),
+  ).toBeVisible();
+  await expect(broaden).toHaveCount(0);
+  await expect(page.locator(".search-results")).toContainText(query);
+  await expect(page.locator("body")).toHaveJSProperty(
+    "scrollWidth",
+    await page.locator("body").evaluate((e) => e.clientWidth),
+  );
+});
 test("switching accounts clears products, search results and nutrition totals", async ({
   page,
 }, testInfo) => {

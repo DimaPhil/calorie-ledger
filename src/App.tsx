@@ -687,6 +687,23 @@ function SessionApp({
                   </button>
                 </div>
                 <p>{searchResult.reason}</p>
+                {searchResult.status === "matched" && (
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void perform(async () =>
+                        setSearchResult(
+                          await action<SearchResult>("search_products", {
+                            query: searchResult.query,
+                            broaden: true,
+                          }),
+                        ),
+                      )
+                    }
+                  >
+                    Search for other matches
+                  </button>
+                )}
                 {searchResult.warnings.map((w) => (
                   <p className="hint" key={w}>
                     {w}

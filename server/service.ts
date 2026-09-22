@@ -289,6 +289,7 @@ export class Service {
           input.query,
           input.external,
           this.provider,
+          input.broaden,
         );
       case "save_product":
         return this.save("products", input.product, input.id);

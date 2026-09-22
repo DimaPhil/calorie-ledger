@@ -160,6 +160,7 @@ export const actionSchemas = {
     .object({
       query: z.string().trim().min(1).max(200),
       external: z.boolean().default(true),
+      broaden: z.boolean().default(false),
     })
     .strict(),
   save_product: z
