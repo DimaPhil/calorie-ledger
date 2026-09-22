@@ -82,6 +82,14 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     await page.getByRole("button", { name: period, exact: true }).click();
     await expect(page.locator(".entries")).toBeVisible();
   }
+  await page.getByRole("button", { name: "Custom", exact: true }).click();
+  await page.getByLabel("From", { exact: true }).fill("2099-01-02");
+  await page.getByLabel("Through", { exact: true }).fill("2099-01-01");
+  await expect(page.getByRole("alert")).toContainText("Choose a date range");
+  await expect(page.locator(".energy > strong")).toContainText("—");
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(page.locator(".entries")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.locator("body")).toHaveJSProperty(
     "scrollWidth",
     await page.locator("body").evaluate((e) => e.clientWidth),

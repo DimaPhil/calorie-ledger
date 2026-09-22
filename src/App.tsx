@@ -187,15 +187,22 @@ function SessionApp({
   }
   useEffect(() => {
     if (!user) return;
+    let active = true;
     Promise.all([
       action<Product[]>("list_products"),
       action<Dish[]>("list_dishes"),
     ])
       .then(([p, d]) => {
+        if (!active) return;
         setProducts(p);
         setDishes(d);
       })
-      .catch(fail);
+      .catch((e) => {
+        if (active) fail(e);
+      });
+    return () => {
+      active = false;
+    };
   }, [user, revision]);
   useEffect(() => {
     if (!user) return;
@@ -212,13 +219,17 @@ function SessionApp({
       });
   }, [user, period]);
   useEffect(() => {
+    setStats(undefined);
     if (!user || !dates.start || !dates.end) return;
+    setError("");
     let active = true;
     action<Stats>("get_stats", dates)
       .then((s) => {
         if (active) setStats(s);
       })
-      .catch(fail);
+      .catch((e) => {
+        if (active) fail(e);
+      });
     return () => {
       active = false;
     };
