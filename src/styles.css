@@ -1,4 +1,6 @@
 :root {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   font-family:
     Inter,
     -apple-system,
@@ -17,6 +19,8 @@
 }
 body {
   margin: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 button,
 input,
@@ -107,6 +111,7 @@ strong {
 .shell {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 .sidebar {
   width: 220px;
@@ -179,6 +184,7 @@ strong {
   background: #e1e7d8;
 }
 .main {
+  min-width: 0;
   margin-left: 220px;
   padding: 46px 48px 60px;
   width: calc(100% - 220px);
@@ -316,6 +322,8 @@ strong {
   align-items: start;
 }
 .panel {
+  min-width: 0;
+  overflow-wrap: anywhere;
   background: #fff;
   border: 1px solid #e2e5db;
   border-radius: 13px;
@@ -1003,12 +1011,17 @@ pre {
   .sidebar nav button {
     flex: 1;
     justify-content: center;
+    min-width: 0;
+    padding: 8px 4px;
+    flex-direction: column;
+    min-height: 48px;
   }
   .main {
     padding: 25px 16px 45px;
   }
   .page-header {
     align-items: flex-start;
+    flex-wrap: wrap;
     margin-bottom: 23px;
     gap: 10px;
   }
@@ -1022,7 +1035,8 @@ pre {
     white-space: nowrap;
     padding: 9px 11px;
     font-size: 11px;
-    margin-top: 27px;
+    margin-top: 0;
+    min-height: 44px;
   }
   .eyebrow {
     font-size: 8px;
@@ -1043,7 +1057,7 @@ pre {
     font-size: 10px;
   }
   .journal-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .right-column {
     display: grid;
@@ -1080,7 +1094,16 @@ pre {
     padding: 40px 15px;
   }
   .settings-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  input,
+  select,
+  textarea,
+  .searchbar input {
+    font-size: 16px;
   }
   .searchbar {
     gap: 8px;
@@ -1088,9 +1111,6 @@ pre {
   .searchbar button {
     font-size: 12px;
     padding: 8px 12px;
-  }
-  .searchbar input {
-    font-size: 13px;
   }
   .food-row {
     gap: 12px;
@@ -1106,6 +1126,7 @@ pre {
   dialog {
     padding: 20px;
     max-height: 92vh;
+    max-height: 92dvh;
   }
   .portion-row {
     flex-wrap: wrap;

@@ -8,6 +8,8 @@ A private food journal with a responsive web dashboard and authenticated MCP too
 
 ## Everyday use
 
+On iPhone, open the app in Safari, choose **Share → Add to Home Screen**, and keep **Open as Web App** enabled if shown. The installed app has its own icon and standalone window, with safe-area spacing for the notch and Home indicator. Internet is required to read or save journal data; offline launches show a reconnect page. The service worker caches only that public fallback page, never account data or OAuth responses. Fingerprinted JS/CSS assets use long-lived browser caching; app navigation stays network-first.
+
 1. Sign in. In **Foods**, search by food name, brand, or barcode. Choose a result and review its label, or add a custom product. Unknown nutrients stay unknown. Nutrition may be entered per any gram weight; it is stored per 100g.
 2. Save useful portion conversions: grams per bar, serving, US cup, or another supported unit. Weight converts automatically; volume and pieces require a product-specific conversion. Approximate, clearly labeled portions are supported.
 3. In **Dishes**, combine saved products with amounts, units, and recipe yield. Optionally record cooked weight to log the finished dish by weight. Preview nutrition before saving.
