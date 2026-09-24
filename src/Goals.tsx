@@ -46,8 +46,8 @@ export function GoalsDashboard({
     setData(null);
     setError("");
     action<GoalsData>("get_goals" as Action, {
-      start: monday(stats.start),
-      end: shift(monday(stats.end), 6),
+      start: stats.start,
+      end: stats.end,
     })
       .then((value) => {
         if (active) setData(value);
@@ -116,65 +116,47 @@ export function GoalsDashboard({
           .map((metric) => {
             let total = 0;
             let known = 0;
-            let expected = selectedDays.length;
+            const expected = selectedDays.length;
             let target = 0;
             let partial = false;
-            if (metric.period === "week") {
-              const start = monday(targetDate);
-              const checks = data.checkins.filter(
-                (c) => c.date >= start && c.date <= shift(start, 6),
-              );
-              const values = checks
-                .map(
-                  (c) => (c as unknown as Record<string, unknown>)[metric.key],
-                )
-                .filter((v): v is number => typeof v === "number");
-              total = values.reduce((a, b) => a + b, 0);
-              known = values.length;
-              expected = 7;
-              partial = values.length < 7;
-              target = goalsOn(data, targetDate)[metric.key];
-            } else {
-              for (const day of selectedDays) {
-                const value =
-                  metric.source === "food"
-                    ? (day.nutrients as Record<string, number | undefined>)[
-                        metric.key
-                      ]
-                    : (
-                        data.checkins.find(
-                          (c) => c.date === day.date,
-                        ) as unknown as Record<string, unknown> | undefined
-                      )?.[metric.key];
-                if (
-                  typeof value === "number" &&
-                  (metric.source !== "food" || day.count > 0)
-                ) {
-                  total += value;
-                  target += goalsOn(data, day.date)[metric.key];
-                  known++;
-                }
-                if (
-                  metric.source === "food" &&
-                  stats.entries
-                    .filter((e) => e.date === day.date)
-                    .some((e) =>
-                      e.items.some(
-                        (i) =>
-                          (i.nutrients as Record<string, unknown>)[
-                            metric.key
-                          ] === undefined,
-                      ),
-                    )
-                )
-                  partial = true;
+            for (const day of selectedDays) {
+              const value =
+                metric.source === "food"
+                  ? (day.nutrients as Record<string, number | undefined>)[
+                      metric.key
+                    ]
+                  : (
+                      data.checkins.find(
+                        (c) => c.date === day.date,
+                      ) as unknown as Record<string, unknown> | undefined
+                    )?.[metric.key];
+              if (
+                typeof value === "number" &&
+                (metric.source !== "food" || day.count > 0)
+              ) {
+                total += value;
+                target += goalsOn(data, day.date)[metric.key];
+                known++;
               }
-              target = known
-                ? target / known
-                : goalsOn(data, targetDate)[metric.key];
-              if (known) total /= known;
-              partial ||= known < expected;
+              if (
+                metric.source === "food" &&
+                stats.entries
+                  .filter((e) => e.date === day.date)
+                  .some((e) =>
+                    e.items.some(
+                      (i) =>
+                        (i.nutrients as Record<string, unknown>)[metric.key] ===
+                        undefined,
+                    ),
+                  )
+              )
+                partial = true;
             }
+            target = known
+              ? target / known
+              : goalsOn(data, targetDate)[metric.key];
+            if (known) total /= known;
+            partial ||= known < expected;
             const percent =
               known && target > 0 ? Math.round((total / target) * 100) : null;
             const over = metric.kind === "limit" && total > target;
@@ -218,11 +200,7 @@ export function GoalsDashboard({
                 />
                 <small>
                   {status}
-                  {metric.period === "week"
-                    ? ` · week of ${monday(targetDate)}`
-                    : !single && known
-                      ? ` · ${known} known days`
-                      : ""}
+                  {!single && known ? ` · ${known} known days` : ""}
                 </small>
               </article>
             );
@@ -239,9 +217,8 @@ export function GoalsDashboard({
       {expanded && (
         <p className="goals-footnote">
           Missing values are unknown, not zero. Free sugars differ from total
-          and added sugars. Drink, fruit & vegetable and fish totals are entered
-          in the check-in; they are not added again from food records. Weekly
-          fish progress uses the week containing the selected end date.
+          and added sugars. Drink totals are entered in the check-in; they are
+          not added again from food records.
         </p>
       )}
       {single ? (
@@ -431,8 +408,6 @@ function DailyCheckIn({
   const [message, setMessage] = useState("");
   const fields = [
     { key: "beverages", label: "Drinks total (ml)", max: 20000 },
-    { key: "fruitVeg", label: "Fruit & vegetables total (g)", max: 10000 },
-    { key: "fish", label: "Fish portions", max: 20 },
     { key: "weight", label: "Weight (kg)", max: 500 },
     { key: "waist", label: "Waist (cm)", max: 300 },
     { key: "sleep", label: "Sleep (hours)", max: 24 },
@@ -443,9 +418,7 @@ function DailyCheckIn({
       <summary>
         Daily check-in{" "}
         <span>
-          {initial?.complete
-            ? "Complete"
-            : "Drinks, food quality & body measurements"}
+          {initial?.complete ? "Complete" : "Drinks & body measurements"}
         </span>
       </summary>
       <form
@@ -474,8 +447,7 @@ function DailyCheckIn({
       >
         <p>
           Enter totals for this day, not amounts to add. Leave unknown values
-          blank. One fish portion means one portion you ate; use the same
-          portion convention each week.
+          blank.
         </p>
         <div className="goal-form-grid">
           {fields.map((field) => (
