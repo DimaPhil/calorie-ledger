@@ -371,18 +371,38 @@ export class Service {
         return this.remove("entries", input.id);
       case "update_entry": {
         validateDate(input.date);
+        const existing = await this.database.query(
+          "SELECT data FROM entries WHERE user_id=$1 AND id=$2 AND NOT deleted",
+          [this.user.id, input.id],
+        );
+        if (!existing.rows[0])
+          throw new AppError("not_found", "Entry not found.", 404);
+        const previous = existing.rows[0].data as Entry;
+        if (
+          input.expectedRevision !== undefined &&
+          input.expectedRevision !== (previous.revision || 0)
+        )
+          throw new AppError(
+            "entry_conflict",
+            "This entry changed elsewhere. Close this dialog and refresh the journal before editing again.",
+            409,
+          );
+        const { id: _id, expectedRevision: _expected, ...changes } = input;
+        const updated = {
+          ...previous,
+          ...changes,
+          nutrients: input.items
+            ? sum(
+                input.items.map(
+                  (item: Entry["items"][number]) => item.nutrients,
+                ),
+              )
+            : previous.nutrients,
+          revision: (previous.revision || 0) + 1,
+        };
         const { rows } = await this.database.query(
           `UPDATE entries SET date=$3,data=data || $4::jsonb WHERE user_id=$1 AND id=$2 AND NOT deleted RETURNING data`,
-          [
-            this.user.id,
-            input.id,
-            input.date,
-            JSON.stringify({
-              date: input.date,
-              meal: input.meal,
-              notes: input.notes,
-            }),
-          ],
+          [this.user.id, input.id, input.date, JSON.stringify(updated)],
         );
         if (!rows[0]) throw new AppError("not_found", "Entry not found.", 404);
         return rows[0].data;

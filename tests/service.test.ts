@@ -287,6 +287,74 @@ describe("food diary service", () => {
   });
 });
 describe("agent food resolution", () => {
+  it("corrects only the entry snapshot, rejects stale edits, and preserves retry identity", async () => {
+    const original = input({ idempotencyKey: "snapshot-correction-test" });
+    const logged = await a.run("log_food", original);
+    const correction = {
+      id: logged.entry.id,
+      date: original.date,
+      meal: "lunch",
+      notes: "manual correction",
+      expectedRevision: 0,
+      name: "Corrected bowl",
+      amount: 2,
+      unit: "serving",
+      items: [
+        { name: "Oats", grams: 75, nutrients: { calories: 250, protein: 12 } },
+        { name: "Fruit", grams: 30, nutrients: { calories: 50, carbs: 10 } },
+      ],
+    };
+    await expect(b.run("update_entry", correction)).rejects.toMatchObject({
+      code: "not_found",
+    });
+    const updated = await a.run("update_entry", correction);
+    expect(updated).toMatchObject({
+      id: logged.entry.id,
+      revision: 1,
+      name: "Corrected bowl",
+      amount: 2,
+      nutrients: { calories: 300, protein: 12, carbs: 10 },
+    });
+    expect(updated.nutrients.fat).toBeUndefined();
+    expect(
+      (await a.run("list_products", {})).find((x: Product) => x.id === p.id),
+    ).toMatchObject({ nutrients: p.nutrients });
+    expect(await a.run("log_food", original)).toMatchObject({
+      replayed: true,
+      entry: { id: logged.entry.id, revision: 1 },
+    });
+    await expect(a.run("update_entry", correction)).rejects.toMatchObject({
+      code: "entry_conflict",
+    });
+    await expect(
+      a.run("update_entry", { ...correction, expectedRevision: 1, items: [] }),
+    ).rejects.toMatchObject({ code: "clarification_required" });
+    await expect(
+      a.run("update_entry", {
+        ...correction,
+        expectedRevision: 1,
+        items: [{ name: "Invalid", grams: 1, nutrients: { calories: -1 } }],
+      }),
+    ).rejects.toMatchObject({ code: "clarification_required" });
+    const concurrent = await Promise.allSettled([
+      a.run("update_entry", {
+        ...correction,
+        expectedRevision: 1,
+        notes: "first",
+      }),
+      a.run("update_entry", {
+        ...correction,
+        expectedRevision: 1,
+        notes: "second",
+      }),
+    ]);
+    expect(concurrent.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(concurrent.filter((x) => x.status === "rejected")).toHaveLength(1);
+    await a.run("delete_entry", { id: logged.entry.id });
+    await expect(
+      a.run("update_entry", { ...correction, expectedRevision: 2 }),
+    ).rejects.toMatchObject({ code: "not_found" });
+  });
   it("broadens exact and remembered matches without forgetting the choice", async () => {
     await a.run("remember_choice", {
       query: "morning staple",

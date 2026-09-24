@@ -47,7 +47,7 @@ const descriptions: Record<Action, string> = {
     "Record one confirmed food or dish. Required: exact item ID, amount, unit, local YYYY-MM-DD date, stable retry key. Ingredient overrides modify this log only. Returns the saved entry.",
   delete_entry: "Delete a mistaken food log. Ask user before deletion.",
   update_entry:
-    "Correct date, meal or notes on a food log; nutrition snapshot stays intact. For a quantity correction, replace the log.",
+    "Correct an existing journal entry in place. Date/meal/notes remain required. Optional name/amount/unit/items override this entry only; items contain component name, grams, and total nutrients (not per 100g). Totals are recomputed from items. Snapshot changes require expectedRevision from get_stats (missing revision means 0); quantity changes require the complete items snapshot. On entry_conflict, reload and reconfirm rather than overwriting. Saved foods/recipes are unchanged.",
   get_stats:
     "Get entries, daily totals, nutrient totals and incomplete-data warnings for an inclusive local date range (up to 366 days).",
   get_profile:

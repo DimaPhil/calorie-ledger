@@ -24,6 +24,7 @@ import {
   type SearchResult,
   type Quantity,
   type Entry,
+  type EntryUpdate,
   type Nutrients,
 } from "./shared.js";
 
@@ -544,27 +545,18 @@ function SessionApp({
                       <EntryRow
                         key={entry.id}
                         entry={entry}
-                        busy={busy}
-                        onDelete={() => {
-                          if (
-                            confirm(`Delete ${entry.name} from your journal?`)
-                          )
-                            void perform(async () => {
-                              await action("delete_entry", { id: entry.id });
-                              done("Entry deleted.");
-                            });
+                        onDelete={async () => {
+                          await action("delete_entry", { id: entry.id });
+                          done("Entry deleted.");
                         }}
-                        onEdit={(date, meal, notes) =>
-                          void perform(async () => {
-                            await action("update_entry", {
-                              id: entry.id,
-                              date,
-                              meal,
-                              notes,
-                            });
-                            done("Entry updated.");
-                          })
-                        }
+                        onEdit={async (changes) => {
+                          const updated = await action<Entry>(
+                            "update_entry",
+                            changes,
+                          );
+                          done("Entry updated.");
+                          return updated;
+                        }}
                       />
                     ))}
                   </div>
@@ -988,11 +980,14 @@ function Modal({
 }) {
   useEffect(() => {
     const old = document.activeElement as HTMLElement;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const dialog = document.querySelector("dialog")!;
     dialog.showModal();
     dialog.querySelector<HTMLElement>("input,select,textarea")?.focus();
     return () => {
       dialog.close();
+      document.body.style.overflow = oldOverflow;
       old?.focus();
     };
   }, []);
@@ -1518,86 +1513,417 @@ function LogForm({
 }
 function EntryRow({
   entry,
-  busy,
   onDelete,
   onEdit,
 }: {
   entry: Entry;
-  busy: boolean;
-  onDelete: () => void;
-  onEdit: (date: string, meal: string, notes: string) => void;
+  onDelete: () => Promise<void>;
+  onEdit: (changes: EntryUpdate) => Promise<Entry>;
 }) {
+  const [opened, setOpened] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [draft, setDraft] = useState(entry);
+  const [componentAmount, setComponentAmount] = useState(entry.amount);
+  const totals = Object.fromEntries(
+    nutrientKeys.flatMap((k) => {
+      const values = draft.items
+        .map((i) => i.nutrients[k])
+        .filter((v) => v !== undefined);
+      return values.length ? [[k, values.reduce((a, b) => a + b, 0)]] : [];
+    }),
+  ) as Nutrients;
+  const changeItem = (
+    index: number,
+    changes: Partial<Entry["items"][number]>,
+  ) =>
+    setDraft({
+      ...draft,
+      items: draft.items.map((item, i) =>
+        i === index ? { ...item, ...changes } : item,
+      ),
+    });
+  const close = () => {
+    if (busy) return;
+    if (
+      editing &&
+      JSON.stringify(draft) !== JSON.stringify(entry) &&
+      !confirm("Discard your unsaved entry changes?")
+    )
+      return;
+    setOpened(false);
+  };
   return (
-    <article className="entry">
-      <div className="entry-icon">
-        {entry.meal === "breakfast" ? "◔" : entry.meal === "dinner" ? "◒" : "◈"}
-      </div>
-      <div className="entry-content">
-        <strong>{entry.name}</strong>
-        <small>
-          {entry.amount} {entry.unit} · {entry.meal} · {entry.date}
-        </small>
-        {entry.notes && <p>{entry.notes}</p>}
-        <details>
-          <summary>Details & corrections</summary>
-          <p>
-            {entry.items.map((i) => `${i.name}: ${num(i.grams)}g`).join(" · ")}
-          </p>
-          <div className="mini-macros">
-            Protein {num(entry.nutrients.protein)}g · Carbs{" "}
-            {num(entry.nutrients.carbs)}g · Fat {num(entry.nutrients.fat)}g
-          </div>
-          <div className="row">
-            <button onClick={() => setEditing(!editing)}>Edit entry</button>
-            <button className="danger" disabled={busy} onClick={onDelete}>
-              Delete
-            </button>
-          </div>
-          <small>
-            To correct an amount, delete this entry and log it again.
-          </small>
-          {editing && (
+    <>
+      <article className="entry">
+        <button
+          className="entry-open"
+          aria-label={`View entry: ${entry.name}`}
+          onClick={() => {
+            setDraft(structuredClone(entry));
+            setComponentAmount(entry.amount);
+            setError("");
+            setEditing(false);
+            setOpened(true);
+          }}
+        >
+          <span className="entry-icon" aria-hidden="true">
+            {entry.meal === "breakfast"
+              ? "◔"
+              : entry.meal === "dinner"
+                ? "◒"
+                : "◈"}
+          </span>
+          <span className="entry-content">
+            <strong>{entry.name}</strong>
+            <small>
+              {entry.amount} {entry.unit} · {entry.meal} · {entry.date}
+            </small>
+            {entry.notes && <small>{entry.notes}</small>}
+            <small>View details &amp; edit →</small>
+          </span>
+          <span className="entry-energy">
+            <strong>{num(entry.nutrients.calories)}</strong>
+            <small>kcal</small>
+          </span>
+        </button>
+      </article>
+      {opened && (
+        <Modal
+          title={editing ? "Edit journal entry" : draft.name}
+          onClose={close}
+        >
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          {!editing ? (
+            <>
+              <p>
+                {draft.amount} {draft.unit} · {draft.meal} · {draft.date}
+              </p>
+              {draft.notes && <p>{draft.notes}</p>}
+              <h3>Entry nutrition</h3>
+              <dl className="nutrient-list">
+                {nutrientKeys.map((k) => (
+                  <div key={k}>
+                    <dt>{nutrientLabels[k]}</dt>
+                    <dd>{num(draft.nutrients[k])}</dd>
+                  </div>
+                ))}
+              </dl>
+              <h3>Components</h3>
+              {draft.items.map((item, i) => (
+                <div className="ingredient" key={i}>
+                  <strong>{item.name}</strong>
+                  <p>
+                    {num(item.grams)} g · {num(item.nutrients.calories)} kcal
+                  </p>
+                </div>
+              ))}
+              <div className="form-footer">
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!confirm(`Delete ${draft.name} from your journal?`))
+                      return;
+                    setBusy(true);
+                    setError("");
+                    try {
+                      await onDelete();
+                      setOpened(false);
+                    } catch (e) {
+                      setError(
+                        e instanceof Error
+                          ? e.message
+                          : "Could not delete entry.",
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  Delete entry
+                </button>
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() => setEditing(true)}
+                >
+                  Edit entry
+                </button>
+              </div>
+            </>
+          ) : (
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                onEdit(
-                  String(f.get("date")),
-                  String(f.get("meal")),
-                  String(f.get("notes")),
-                );
-                setEditing(false);
+                setBusy(true);
+                setError("");
+                try {
+                  const updated = await onEdit({
+                    id: entry.id,
+                    expectedRevision: draft.revision || 0,
+                    name: draft.name,
+                    date: draft.date,
+                    meal: draft.meal as EntryUpdate["meal"],
+                    notes: draft.notes,
+                    amount: draft.amount,
+                    unit: draft.unit as EntryUpdate["unit"],
+                    items: draft.items as EntryUpdate["items"],
+                  });
+                  setDraft(updated);
+                  setComponentAmount(updated.amount);
+                  setEditing(false);
+                  setOpened(false);
+                } catch (e) {
+                  setError(
+                    e instanceof Error ? e.message : "Could not save entry.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
-              <Field label="Entry date">
-                <input
-                  type="date"
-                  name="date"
-                  defaultValue={entry.date}
-                  required
-                />
-              </Field>
-              <Field label="Entry meal">
-                <select name="meal" defaultValue={entry.meal}>
-                  {["breakfast", "lunch", "dinner", "snack"].map((m) => (
-                    <option key={m}>{m}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Entry notes">
-                <input name="notes" defaultValue={entry.notes} />
-              </Field>
-              <Submit busy={busy}>Save correction</Submit>
+              <fieldset disabled={busy} className="entry-fields">
+                <p className="form-note">
+                  Edits apply only to this entry. Nutrition values below are
+                  totals for each component, not per 100g. Blank means unknown.
+                  Entry totals are calculated from components.
+                </p>
+                <Field label="Entry name">
+                  <input
+                    required
+                    maxLength={200}
+                    value={draft.name}
+                    onChange={(e) =>
+                      setDraft({ ...draft, name: e.target.value })
+                    }
+                  />
+                </Field>
+                <div className="row">
+                  <Field label="Entry date">
+                    <input
+                      type="date"
+                      required
+                      value={draft.date}
+                      onChange={(e) =>
+                        setDraft({ ...draft, date: e.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="Entry meal">
+                    <select
+                      value={draft.meal}
+                      onChange={(e) =>
+                        setDraft({ ...draft, meal: e.target.value })
+                      }
+                    >
+                      {["breakfast", "lunch", "dinner", "snack"].map((m) => (
+                        <option key={m}>{m}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <div className="row">
+                  <Field label="Entry amount">
+                    <input
+                      type="number"
+                      required
+                      min="0.001"
+                      max="100000"
+                      step="any"
+                      value={draft.amount || ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, amount: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Entry unit">
+                    <select
+                      value={draft.unit}
+                      onChange={(e) =>
+                        setDraft({ ...draft, unit: e.target.value })
+                      }
+                    >
+                      {units.map((u) => (
+                        <option key={u}>{u}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <p className="muted">
+                  Amount and unit describe the entry. To resize the same
+                  portion, scale from {num(componentAmount)} to{" "}
+                  {num(draft.amount)}; otherwise edit the component totals
+                  directly. Changing units does not convert nutrition.
+                </p>
+                <button
+                  type="button"
+                  disabled={!draft.amount || draft.amount === componentAmount}
+                  onClick={() => {
+                    const factor = draft.amount / componentAmount;
+                    setDraft({
+                      ...draft,
+                      items: draft.items.map((item) => ({
+                        ...item,
+                        grams: item.grams * factor,
+                        nutrients: Object.fromEntries(
+                          Object.entries(item.nutrients).map(([k, v]) => [
+                            k,
+                            v! * factor,
+                          ]),
+                        ),
+                      })),
+                    });
+                    setComponentAmount(draft.amount);
+                  }}
+                >
+                  Scale components to this amount
+                </button>
+                <Field label="Entry notes">
+                  <textarea
+                    maxLength={2000}
+                    value={draft.notes}
+                    onChange={(e) =>
+                      setDraft({ ...draft, notes: e.target.value })
+                    }
+                  />
+                </Field>
+                <h3>Components</h3>
+                {draft.items.map((item, i) => (
+                  <fieldset className="ingredient" key={i}>
+                    <legend>Component {i + 1}</legend>
+                    <Field label="Component name">
+                      <input
+                        required
+                        maxLength={200}
+                        value={item.name}
+                        onChange={(e) =>
+                          changeItem(i, { name: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <div className="row">
+                      <Field label="Component grams">
+                        <input
+                          required
+                          type="number"
+                          min="0.001"
+                          max="100000"
+                          step="any"
+                          value={item.grams || ""}
+                          onChange={(e) =>
+                            changeItem(i, { grams: Number(e.target.value) })
+                          }
+                        />
+                      </Field>
+                      <Field label="Calories (kcal)">
+                        <input
+                          required
+                          type="number"
+                          min="0"
+                          max="100000"
+                          step="any"
+                          value={item.nutrients.calories ?? ""}
+                          onChange={(e) => {
+                            const nutrients = { ...item.nutrients };
+                            if (e.target.value === "")
+                              delete nutrients.calories;
+                            else nutrients.calories = Number(e.target.value);
+                            changeItem(i, { nutrients });
+                          }}
+                        />
+                      </Field>
+                    </div>
+                    <details>
+                      <summary>Macros and other nutrients</summary>
+                      <div className="nutrient-fields">
+                        {nutrientKeys
+                          .filter((k) => k !== "calories")
+                          .map((k) => (
+                            <Field key={k} label={nutrientLabels[k]}>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100000"
+                                step="any"
+                                value={item.nutrients[k] ?? ""}
+                                onChange={(e) => {
+                                  const nutrients = { ...item.nutrients };
+                                  if (e.target.value === "")
+                                    delete nutrients[k];
+                                  else nutrients[k] = Number(e.target.value);
+                                  changeItem(i, { nutrients });
+                                }}
+                              />
+                            </Field>
+                          ))}
+                      </div>
+                    </details>
+                    <button
+                      type="button"
+                      className="danger"
+                      disabled={draft.items.length === 1}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          items: draft.items.filter((_, j) => i !== j),
+                        })
+                      }
+                    >
+                      Remove component {i + 1}
+                    </button>
+                  </fieldset>
+                ))}
+                <button
+                  type="button"
+                  disabled={draft.items.length >= 100}
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      items: [
+                        ...draft.items,
+                        { name: "", grams: 1, nutrients: {} },
+                      ],
+                    })
+                  }
+                >
+                  Add component
+                </button>
+                <p role="status">
+                  Entry total: {num(totals.calories)} kcal · Protein{" "}
+                  {num(totals.protein)} g · Carbs {num(totals.carbs)} g · Fat{" "}
+                  {num(totals.fat)} g
+                </p>
+                <div className="form-footer">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        JSON.stringify(draft) === JSON.stringify(entry) ||
+                        confirm("Discard your unsaved entry changes?")
+                      ) {
+                        setDraft(structuredClone(entry));
+                        setComponentAmount(entry.amount);
+                        setEditing(false);
+                        setError("");
+                      }
+                    }}
+                  >
+                    Cancel editing
+                  </button>
+                  <Submit busy={busy}>Save correction</Submit>
+                </div>
+              </fieldset>
             </form>
           )}
-        </details>
-      </div>
-      <div className="entry-energy">
-        <strong>{num(entry.nutrients.calories)}</strong>
-        <small>kcal</small>
-      </div>
-    </article>
+        </Modal>
+      )}
+    </>
   );
 }
 function Settings({
