@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { checkInSchema, goalTargetsSchema } from "./goals-shared.js";
 
-export const nutrientKeys = [
+export const legacyNutrientKeys = [
   "calories",
   "protein",
   "carbs",
@@ -17,6 +18,11 @@ export const nutrientKeys = [
   "iron",
   "vitaminC",
   "vitaminD",
+] as const;
+export const nutrientKeys = [
+  ...legacyNutrientKeys,
+  "magnesium",
+  "freeSugar",
 ] as const;
 export const nutrientLabels: Record<(typeof nutrientKeys)[number], string> = {
   calories: "Energy (kcal)",
@@ -35,6 +41,8 @@ export const nutrientLabels: Record<(typeof nutrientKeys)[number], string> = {
   iron: "Iron (mg)",
   vitaminC: "Vitamin C (mg)",
   vitaminD: "Vitamin D (µg)",
+  magnesium: "Magnesium (mg)",
+  freeSugar: "Free sugars (g; not total sugars)",
 };
 export const units = [
   "g",
@@ -123,6 +131,7 @@ export type Entry = {
   id: string;
   autoUpdate?: boolean;
   revision?: number;
+  trackedNutrients?: (typeof nutrientKeys)[number][];
   name: string;
   date: string;
   meal: string;
@@ -207,6 +216,12 @@ export const entryUpdateSchema = z
   );
 export type EntryUpdate = z.infer<typeof entryUpdateSchema>;
 export const actionSchemas = {
+  get_goals: z.object({ start: dateSchema, end: dateSchema }).strict(),
+  save_goals: z
+    .object({ effectiveDate: dateSchema, targets: goalTargetsSchema })
+    .strict(),
+  save_checkin: checkInSchema,
+  save_enriched_product: z.object({ id: z.uuid() }).strict(),
   list_products: z.object({}).strict(),
   search_products: z
     .object({

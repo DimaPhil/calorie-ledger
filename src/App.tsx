@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { DateTime } from "luxon";
+import { GoalsDashboard, GoalAdmin } from "./Goals.js";
 import {
   action,
   api,
@@ -164,6 +165,12 @@ function SessionApp({
   const [stats, setStats] = useState<Stats>();
   const [period, setPeriod] = useState("Day");
   const [dates, setDates] = useState({ start: "", end: "" });
+  useEffect(() => {
+    const refreshFoods = () => setRevision((n) => n + 1);
+    window.addEventListener("ledger-foods-changed", refreshFoods);
+    return () =>
+      window.removeEventListener("ledger-foods-changed", refreshFoods);
+  }, []);
   const today = () =>
     DateTime.now()
       .setZone(user?.timezone || "America/Los_Angeles")
@@ -333,7 +340,7 @@ function SessionApp({
     );
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label="Account navigation">
         <a className="brand" href="/">
           ◒{" "}
           <span>
@@ -516,48 +523,14 @@ function SessionApp({
               {dateLabel}
               {period === "Week" ? " · Mon–Sun" : ""}
             </p>
-            <section className="metrics" aria-label="Nutrition summary">
-              <article className="metric energy">
-                <span>ENERGY</span>
-                <strong>
-                  {num(
-                    stats?.totals.calories ??
-                      (stats?.entries.length === 0 ? 0 : undefined),
-                  )}
-                  <small> kcal</small>
-                </strong>
-                <div className="energy-line" />
-                <p>
-                  {stats?.entries.length || 0} foods logged ·{" "}
-                  {dates.start === dates.end
-                    ? dates.start === today()
-                      ? "today"
-                      : "this day"
-                    : "this period"}
-                </p>
-              </article>
-              {(["protein", "carbs", "fat"] as const).map((key, i) => (
-                <article className="metric" key={key}>
-                  <span>
-                    <i className={`dot color-${i}`} />
-                    {key.toUpperCase()}
-                  </span>
-                  <strong>
-                    {num(stats?.totals[key])}
-                    <small> g</small>
-                  </strong>
-                  <p>
-                    {
-                      [
-                        "Build & recover",
-                        "Everyday energy",
-                        "Balance & flavor",
-                      ][i]
-                    }
-                  </p>
-                </article>
-              ))}
-            </section>
+            {stats && (
+              <GoalsDashboard
+                stats={stats}
+                today={today()}
+                revision={revision}
+                onDay={(date) => selectPeriod("Day", date)}
+              />
+            )}
             {stats &&
               stats.missingNutrients.some((k) =>
                 ["calories", "protein", "carbs", "fat"].includes(k),
@@ -613,7 +586,10 @@ function SessionApp({
                   </div>
                 )}
               </section>
-              <aside className="right-column">
+              <aside
+                className="right-column"
+                aria-label="Nutrition details and agent connection"
+              >
                 <section className="panel soft">
                   <span className="eyebrow">SMALL DETAILS, BIG PICTURE</span>
                   <h2>Beyond calories</h2>
@@ -665,35 +641,6 @@ function SessionApp({
                 </section>
               </aside>
             </div>
-            {stats && stats.days.length > 1 && (
-              <section className="panel trend">
-                <div className="section-heading">
-                  <h2>Day by day</h2>
-                  <span>Energy · kcal</span>
-                </div>
-                <div
-                  className="bars"
-                  role="img"
-                  aria-label={stats.days
-                    .map((d) => `${d.date}: ${num(d.nutrients.calories)} kcal`)
-                    .join("; ")}
-                >
-                  {stats.days.map((d) => (
-                    <div
-                      key={d.date}
-                      title={`${d.date}: ${num(d.nutrients.calories)} kcal`}
-                    >
-                      <span
-                        style={{
-                          height: `${Math.max(2, ((d.nutrients.calories || 0) / Math.max(1, ...stats.days.map((x) => x.nutrients.calories || 0))) * 110)}px`,
-                        }}
-                      />
-                      <small>{d.date.slice(8)}</small>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
           </>
         )}
         {tab === "Foods" && (
@@ -923,13 +870,16 @@ function SessionApp({
           </>
         )}
         {tab === "Settings" && (
-          <Settings
-            user={user}
-            setUser={setUser}
-            perform={perform}
-            busy={busy}
-            notify={setNotice}
-          />
+          <>
+            <GoalAdmin today={today()} />
+            <Settings
+              user={user}
+              setUser={setUser}
+              perform={perform}
+              busy={busy}
+              notify={setNotice}
+            />
+          </>
         )}
       </main>
       {modal && (

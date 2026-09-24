@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import express from "express";
+import { checkGoals } from "./goals.js";
 
 test("phone pages and dialogs fit the viewport", async ({ page }, info) => {
   await page.goto("/");
@@ -44,6 +45,9 @@ test("phone pages and dialogs fit the viewport", async ({ page }, info) => {
     )
     .toBeLessThanOrEqual(1);
   await page.screenshot({ path: info.outputPath("phone-dialog.png") });
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Day", exact: true }).click();
+  await checkGoals(page, info);
 });
 
 test("Home Screen metadata and private offline fallback", async ({ page }) => {

@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { defaultGoals, type GoalSettings } from "../src/goals-shared.js";
+import { enrichProduct } from "./enrichment.js";
 import { isDeepStrictEqual } from "node:util";
 import { DateTime } from "luxon";
 import {
   actionSchemas,
   nutrientKeys,
+  legacyNutrientKeys,
   type Action,
   type Product,
   type Dish,
@@ -107,6 +110,13 @@ export class Service {
         );
       }
       const { sources, ...nutrition } = calculated;
+      // Entries only recalculate the metrics available when they were created.
+      const tracked = row.data.trackedNutrients || legacyNutrientKeys;
+      for (const item of nutrition.items)
+        item.nutrients = Object.fromEntries(
+          Object.entries(item.nutrients).filter(([k]) => tracked.includes(k)),
+        );
+      nutrition.nutrients = sum(nutrition.items.map((i) => i.nutrients));
       const updated = {
         ...row.data,
         ...nutrition,
@@ -266,6 +276,7 @@ export class Service {
     const entry: Entry = {
       id: randomUUID(),
       autoUpdate: !input.ingredients,
+      trackedNutrients: [...nutrientKeys],
       name,
       date: input.date,
       meal: input.meal,
@@ -365,6 +376,51 @@ export class Service {
       );
     const input = parsed.data as any;
     switch (action) {
+      case "save_enriched_product": {
+        const product = await this.get<Product>("products", input.id);
+        const result = await enrichProduct(product);
+        // Explicit source enrichment is for future logs; never rewrite journal snapshots.
+        if (result.added.length)
+          await this.database.query(
+            "UPDATE products SET data=$3,updated_at=now() WHERE user_id=$1 AND id=$2",
+            [this.user.id, input.id, JSON.stringify(result.product)],
+          );
+        return { id: input.id, added: result.added, warning: result.warning };
+      }
+      case "get_goals": {
+        range(input.start, input.end, 378); // Include the boundary weeks of a 366-day journal range.
+        const history = await this.database.query(
+          "SELECT data FROM goals WHERE user_id=$1 ORDER BY effective_date",
+          [this.user.id],
+        );
+        const settings: GoalSettings[] = history.rows.map((r) => r.data);
+        const fallback = { effectiveDate: "0001-01-01", targets: defaultGoals };
+        const checkins = await this.database.query(
+          "SELECT data FROM checkins WHERE user_id=$1 AND date BETWEEN $2 AND $3 ORDER BY date",
+          [this.user.id, input.start, input.end],
+        );
+        return {
+          settings:
+            settings.filter((s) => s.effectiveDate <= input.end).at(-1) ||
+            fallback,
+          history: [fallback, ...settings],
+          checkins: checkins.rows.map((r) => r.data),
+        };
+      }
+      case "save_goals":
+        validateDate(input.effectiveDate);
+        await this.database.query(
+          "INSERT INTO goals(user_id,effective_date,data) VALUES($1,$2,$3) ON CONFLICT(user_id,effective_date) DO UPDATE SET data=$3",
+          [this.user.id, input.effectiveDate, JSON.stringify(input)],
+        );
+        return input;
+      case "save_checkin":
+        validateDate(input.date);
+        await this.database.query(
+          "INSERT INTO checkins(user_id,date,data) VALUES($1,$2,$3) ON CONFLICT(user_id,date) DO UPDATE SET data=$3",
+          [this.user.id, input.date, JSON.stringify(input)],
+        );
+        return input;
       case "list_products":
         return this.list("products");
       case "search_products":
