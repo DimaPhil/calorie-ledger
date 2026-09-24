@@ -145,6 +145,7 @@ describe("OAuth connector", () => {
       "/.well-known/oauth-protected-resource/mcp",
     );
     expect(metadata.body.resource).toBe(resource);
+    expect(metadata.body.authorization_servers).toEqual([origin]);
     const auth = await request(app).get(
       "/.well-known/oauth-authorization-server",
     );
