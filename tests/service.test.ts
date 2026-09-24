@@ -66,6 +66,266 @@ const input = (extra: object = {}) => ({
   ...extra,
 });
 describe("food diary service", () => {
+  it("follows indexed recipe and ingredient dependencies, replacing links when a recipe changes", async () => {
+    const food = await a.run("save_product", {
+      product: {
+        name: "Linked rice",
+        nutrients: { calories: 360 },
+        portions: [{ label: "scoop", unit: "piece", grams: 50 }],
+      },
+    });
+    const other = await a.run("save_product", {
+      product: { name: "Other grain", nutrients: { calories: 200 } },
+    });
+    const recipe = {
+      name: "Cooked rice",
+      ingredients: [{ productId: food.id, amount: 100, unit: "g" }],
+      servings: 2,
+      cookedWeight: 300,
+    };
+    const dish = await a.run("save_dish", { dish: recipe });
+    const request = {
+      dishId: dish.id,
+      amount: 150,
+      unit: "g",
+      date: "2026-06-01",
+      idempotencyKey: randomUUID(),
+    };
+    const logged = await a.run("log_food", request);
+    expect(logged.entry).toMatchObject({
+      nutrients: { calories: 180 },
+      items: [{ grams: 50 }],
+    });
+    const serving = await a.run("log_food", {
+      ...request,
+      amount: 1,
+      unit: "serving",
+      idempotencyKey: randomUUID(),
+    });
+    const piece = await a.run(
+      "log_food",
+      input({
+        productId: food.id,
+        amount: 1,
+        unit: "piece",
+        portionLabel: "scoop",
+        date: request.date,
+      }),
+    );
+    const stats = async () =>
+      (await a.run("get_stats", { start: request.date, end: request.date }))
+        .entries;
+    await a.run("save_product", {
+      id: food.id,
+      product: {
+        name: "Corrected rice",
+        nutrients: { calories: 400 },
+        portions: [{ label: "scoop", unit: "piece", grams: 60 }],
+      },
+    });
+    let entries = await stats();
+    expect(
+      entries.find((e: any) => e.id === logged.entry.id).nutrients.calories,
+    ).toBe(200);
+    expect(
+      entries.find((e: any) => e.id === piece.entry.id).nutrients.calories,
+    ).toBe(240);
+    await a.run("save_dish", {
+      id: dish.id,
+      dish: {
+        ...recipe,
+        ingredients: [{ productId: other.id, amount: 200, unit: "g" }],
+        servings: 4,
+        cookedWeight: 600,
+      },
+    });
+    entries = await stats();
+    expect(
+      entries.find((e: any) => e.id === logged.entry.id).nutrients.calories,
+    ).toBe(100);
+    expect(
+      entries.find((e: any) => e.id === serving.entry.id).nutrients.calories,
+    ).toBe(100);
+    const links = await database.query(
+      "SELECT source_id FROM entry_dependencies WHERE user_id=$1 AND entry_id=$2 AND kind='products'",
+      [a.user.id, logged.entry.id],
+    );
+    expect(links.rows.map((r) => r.source_id)).toEqual([other.id]);
+    await a.run("save_product", {
+      id: other.id,
+      product: { name: "Other grain", nutrients: { calories: 300 } },
+    });
+    const replay = await a.run("log_food", request);
+    expect(replay).toMatchObject({
+      replayed: true,
+      entry: {
+        id: logged.entry.id,
+        autoUpdate: true,
+        nutrients: { calories: 150 },
+        revision: 3,
+      },
+    });
+    await expect(
+      a.run("update_entry", {
+        id: logged.entry.id,
+        date: request.date,
+        meal: "snack",
+        notes: "stale",
+        expectedRevision: 0,
+      }),
+    ).rejects.toMatchObject({ code: "entry_conflict" });
+    await expect(
+      b.run("save_dish", { id: dish.id, dish: recipe }),
+    ).rejects.toThrow();
+    await a.run("delete_dish", { id: dish.id });
+    await a.run("save_product", {
+      id: other.id,
+      product: { name: "Other grain", nutrients: { calories: 500 } },
+    });
+    expect((await a.run("log_food", request)).entry).toMatchObject({
+      autoUpdate: false,
+      nutrients: { calories: 150 },
+    });
+  });
+  it("preserves legacy, deleted and manually customized entries while metadata edits remain linked", async () => {
+    const product = await a.run("save_product", {
+      product: { name: "Linked food", nutrients: { calories: 100 } },
+    });
+    const request = input({ productId: product.id, date: "2026-06-02" });
+    const normal = (await a.run("log_food", request)).entry;
+    const fixed = (
+      await a.run("log_food", { ...request, idempotencyKey: randomUUID() })
+    ).entry;
+    const legacy = (
+      await a.run("log_food", { ...request, idempotencyKey: randomUUID() })
+    ).entry;
+    const deleted = (
+      await a.run("log_food", { ...request, idempotencyKey: randomUUID() })
+    ).entry;
+    await database.query(
+      "UPDATE entries SET source_input=NULL,data=data-'autoUpdate' WHERE user_id=$1 AND id=$2",
+      [a.user.id, legacy.id],
+    );
+    await database.query(
+      "DELETE FROM entry_dependencies WHERE user_id=$1 AND entry_id=$2",
+      [a.user.id, legacy.id],
+    );
+    await a.run("delete_entry", { id: deleted.id });
+    const metadata = {
+      date: request.date,
+      meal: "lunch",
+      notes: "Keep this note",
+    };
+    await a.run("update_entry", {
+      id: normal.id,
+      ...metadata,
+      name: normal.name,
+      amount: normal.amount,
+      unit: normal.unit,
+      items: normal.items,
+      expectedRevision: 0,
+    });
+    await a.run("update_entry", {
+      id: fixed.id,
+      ...metadata,
+      items: [{ name: "Manual", grams: 100, nutrients: { calories: 80 } }],
+      expectedRevision: 0,
+    });
+    await a.run("save_product", {
+      id: product.id,
+      product: { name: "Changed", nutrients: { calories: 200 } },
+    });
+    const entries = (
+      await a.run("get_stats", { start: request.date, end: request.date })
+    ).entries;
+    expect(entries.find((e: any) => e.id === normal.id)).toMatchObject({
+      ...metadata,
+      autoUpdate: true,
+      nutrients: { calories: 200 },
+    });
+    expect(entries.find((e: any) => e.id === fixed.id)).toMatchObject({
+      autoUpdate: false,
+      nutrients: { calories: 80 },
+    });
+    expect(
+      entries.find((e: any) => e.id === legacy.id).nutrients.calories,
+    ).toBe(100);
+    expect(
+      (
+        await database.query(
+          "SELECT data FROM entries WHERE user_id=$1 AND id=$2",
+          [a.user.id, deleted.id],
+        )
+      ).rows[0].data.nutrients.calories,
+    ).toBe(100);
+    await a.run("delete_product", { id: product.id });
+    expect((await a.run("log_food", request)).entry).toMatchObject({
+      autoUpdate: false,
+      nutrients: { calories: 200 },
+    });
+  });
+  it("rolls back source corrections if a linked portion becomes invalid", async () => {
+    const original = {
+      name: "Portioned",
+      nutrients: { calories: 100 },
+      portions: [{ label: "one", unit: "piece", grams: 50 }],
+    };
+    const product = await a.run("save_product", { product: original });
+    const request = input({
+      productId: product.id,
+      unit: "piece",
+      amount: 1,
+      portionLabel: "one",
+      date: "2026-06-03",
+    });
+    await a.run("log_food", request);
+    await expect(
+      a.run("save_product", {
+        id: product.id,
+        product: { ...original, portions: [], nutrients: { calories: 500 } },
+      }),
+    ).rejects.toMatchObject({ code: "linked_entry_invalid" });
+    expect(await a.get("products", product.id)).toMatchObject(original);
+    expect((await a.run("log_food", request)).entry).toMatchObject({
+      nutrients: { calories: 50 },
+    });
+    const dish = await a.run("save_dish", {
+      dish: {
+        name: "Custom",
+        ingredients: [{ productId: product.id, amount: 100, unit: "g" }],
+        servings: 2,
+      },
+    });
+    const custom = {
+      dishId: dish.id,
+      amount: 1,
+      unit: "serving",
+      ingredients: [{ productId: product.id, amount: 50, unit: "g" }],
+      date: request.date,
+      idempotencyKey: randomUUID(),
+    };
+    await a.run("log_food", custom);
+    await Promise.all([
+      a.run("save_product", {
+        id: product.id,
+        product: { ...original, nutrients: { calories: 200 } },
+      }),
+      a.run("log_food", { ...request, idempotencyKey: randomUUID() }),
+    ]);
+    const stats = await a.run("get_stats", {
+      start: request.date,
+      end: request.date,
+    });
+    expect(
+      stats.entries
+        .filter((e: any) => e.autoUpdate)
+        .map((e: any) => e.nutrients.calories),
+    ).toEqual([100, 100]);
+    expect((await a.run("log_food", custom)).entry).toMatchObject({
+      autoUpdate: false,
+      nutrients: { calories: 25 },
+    });
+  });
   it("isolates every owner read/write and choice", async () => {
     expect(await b.run("list_products", {})).toEqual([]);
     await expect(
@@ -111,7 +371,7 @@ describe("food diary service", () => {
       a.run("log_food", { ...request, amount: 101 }),
     ).rejects.toMatchObject({ code: "idempotency_conflict" });
   });
-  it("snapshots nutrition and reports missing data without zero invention", async () => {
+  it("recalculates linked nutrition and reports missing data without zero invention", async () => {
     const saved = await a.run("save_product", { product: pInput("Snapshot") });
     const logged = await a.run(
       "log_food",
@@ -126,7 +386,7 @@ describe("food diary service", () => {
       start: "2026-08-01",
       end: "2026-08-02",
     });
-    expect(stats.totals.calories).toBe(200);
+    expect(stats.totals.calories).toBe(450);
     expect(stats.missingNutrients).toContain("fiber");
     expect(stats.totals.fiber).toBeUndefined();
     expect(stats.days[1].count).toBe(0);
@@ -148,7 +408,7 @@ describe("food diary service", () => {
       meal: "lunch",
       notes: "corrected",
     });
-    expect(updated.nutrients.calories).toBe(200);
+    expect(updated.nutrients.calories).toBe(450);
     await expect(
       b.run("delete_entry", { id: logged.entry.id }),
     ).rejects.toThrow();

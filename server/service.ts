@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { DateTime } from "luxon";
 import {
   actionSchemas,
@@ -71,7 +72,52 @@ export class Service {
         );
     if (!result.rows[0])
       throw new AppError("not_found", "Item not found.", 404);
+    if (id) await this.recalculate(table, id);
     return this.get(table, result.rows[0].id);
+  }
+  async dependencies(entryId: string, sources: { kind: string; id: string }[]) {
+    await this.database.query(
+      "DELETE FROM entry_dependencies WHERE user_id=$1 AND entry_id=$2",
+      [this.user.id, entryId],
+    );
+    for (const source of sources)
+      await this.database.query(
+        "INSERT INTO entry_dependencies(user_id,entry_id,kind,source_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+        [this.user.id, entryId, source.kind, source.id],
+      );
+  }
+  async linked(table: "products" | "dishes", id: string) {
+    return this.database.query(
+      "SELECT e.id,e.data,e.source_input FROM entry_dependencies d JOIN entries e ON e.user_id=d.user_id AND e.id=d.entry_id WHERE d.user_id=$1 AND d.kind=$2 AND d.source_id=$3 AND NOT e.deleted AND e.source_input IS NOT NULL",
+      [this.user.id, table, id],
+    );
+  }
+  async recalculate(table: "products" | "dishes", id: string) {
+    const { rows } = await this.linked(table, id);
+    for (const row of rows) {
+      let calculated;
+      try {
+        calculated = await this.calculate(row.source_input);
+      } catch (error) {
+        if (!(error instanceof AppError)) throw error;
+        throw new AppError(
+          "linked_entry_invalid",
+          `Cannot update this saved item because a linked journal entry (${row.data.date}) cannot be recalculated: ${error.message} Keep the required nutrition/portion data, or manually correct that entry first.`,
+          422,
+        );
+      }
+      const { sources, ...nutrition } = calculated;
+      const updated = {
+        ...row.data,
+        ...nutrition,
+        revision: (row.data.revision || 0) + 1,
+      };
+      await this.database.query(
+        "UPDATE entries SET data=$3 WHERE user_id=$1 AND id=$2",
+        [this.user.id, row.id, JSON.stringify(updated)],
+      );
+      await this.dependencies(row.id, sources);
+    }
   }
   async remove(table: "products" | "dishes" | "entries", id: string) {
     if (table === "products") {
@@ -90,6 +136,24 @@ export class Service {
       [this.user.id, id],
     );
     if (!rows[0]) throw new AppError("not_found", "Item not found.", 404);
+    if (table === "entries") await this.dependencies(id, []);
+    else {
+      const linked = await this.linked(table, id);
+      for (const row of linked.rows) {
+        await this.database.query(
+          "UPDATE entries SET source_input=NULL,data=data || $3::jsonb WHERE user_id=$1 AND id=$2",
+          [
+            this.user.id,
+            row.id,
+            JSON.stringify({
+              autoUpdate: false,
+              revision: (row.data.revision || 0) + 1,
+            }),
+          ],
+        );
+        await this.dependencies(row.id, []);
+      }
+    }
     return { deleted: true };
   }
   async dishItems(dish: DishInput) {
@@ -112,37 +176,18 @@ export class Service {
       }),
     );
   }
-  async log(input: LogInput): Promise<{ entry: Entry; replayed: boolean }> {
-    validateDate(input.date);
+  async calculate(input: LogInput) {
     if (input.ingredients && !input.dishId)
       throw new AppError(
         "invalid_input",
         "Ingredient overrides require a dish.",
       );
-    const fingerprint = hash(JSON.stringify(input));
-    const existing = await this.database.query(
-      "SELECT id,data,request_hash,deleted FROM entries WHERE user_id=$1 AND idempotency_key=$2",
-      [this.user.id, input.idempotencyKey],
-    );
-    if (existing.rows[0]) {
-      if (existing.rows[0].deleted)
-        throw new AppError(
-          "entry_deleted",
-          "This request was already logged and later deleted. It will not be recreated by a retry.",
-          409,
-        );
-      if (existing.rows[0].request_hash !== fingerprint)
-        throw new AppError(
-          "idempotency_conflict",
-          "This request already saved different values. Review the journal and correct that entry before starting a new log.",
-          409,
-        );
-      return { entry: existing.rows[0].data, replayed: true };
-    }
     let name: string;
     let items: Entry["items"];
+    let sources: { kind: string; id: string }[];
     if (input.productId) {
       const p = await this.get<Product>("products", input.productId);
+      sources = [{ kind: "products", id: p.id }];
       if (p.nutrients.calories === undefined)
         throw new AppError(
           "clarification_required",
@@ -158,6 +203,13 @@ export class Service {
     } else {
       const d = await this.get<Dish>("dishes", input.dishId!);
       const recipe = { ...d, ingredients: input.ingredients || d.ingredients };
+      sources = [
+        { kind: "dishes", id: d.id },
+        ...recipe.ingredients.map((i) => ({
+          kind: "products",
+          id: i.productId,
+        })),
+      ];
       name = d.name;
       let factor: number;
       if (input.unit === "serving") factor = input.amount / d.servings;
@@ -181,8 +233,39 @@ export class Service {
         nutrients: scale(i.nutrients, factor),
       }));
     }
+    return {
+      name,
+      items,
+      nutrients: sum(items.map((i) => i.nutrients)),
+      sources,
+    };
+  }
+  async log(input: LogInput): Promise<{ entry: Entry; replayed: boolean }> {
+    validateDate(input.date);
+    const fingerprint = hash(JSON.stringify(input));
+    const existing = await this.database.query(
+      "SELECT id,data,request_hash,deleted FROM entries WHERE user_id=$1 AND idempotency_key=$2",
+      [this.user.id, input.idempotencyKey],
+    );
+    if (existing.rows[0]) {
+      if (existing.rows[0].deleted)
+        throw new AppError(
+          "entry_deleted",
+          "This request was already logged and later deleted. It will not be recreated by a retry.",
+          409,
+        );
+      if (existing.rows[0].request_hash !== fingerprint)
+        throw new AppError(
+          "idempotency_conflict",
+          "This request already saved different values. Review the journal and correct that entry before starting a new log.",
+          409,
+        );
+      return { entry: existing.rows[0].data, replayed: true };
+    }
+    const { name, items, sources } = await this.calculate(input);
     const entry: Entry = {
       id: randomUUID(),
+      autoUpdate: !input.ingredients,
       name,
       date: input.date,
       meal: input.meal,
@@ -194,7 +277,7 @@ export class Service {
       createdAt: new Date().toISOString(),
     };
     const inserted = await this.database.query(
-      `INSERT INTO entries(id,user_id,date,data,idempotency_key,request_hash) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,idempotency_key) DO NOTHING RETURNING id`,
+      `INSERT INTO entries(id,user_id,date,data,idempotency_key,request_hash,source_input) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(user_id,idempotency_key) DO NOTHING RETURNING id`,
       [
         entry.id,
         this.user.id,
@@ -202,9 +285,11 @@ export class Service {
         JSON.stringify(entry),
         input.idempotencyKey,
         fingerprint,
+        entry.autoUpdate ? JSON.stringify(input) : null,
       ],
     );
     if (!inserted.rows[0]) return this.log(input);
+    if (entry.autoUpdate) await this.dependencies(entry.id, sources);
     if (input.query && input.productId)
       await this.remember(input.query, input.productId);
     return { entry, replayed: false };
@@ -248,8 +333,8 @@ export class Service {
   async run(action: Action, raw: unknown): Promise<any> {
     // Serialize a user's mutations across web/MCP instances. This keeps recipe
     // references, preference writes and nutrition snapshots consistent in one commit.
-    // ponytail: per-user write serialization suits 2–3 users; use row-level recipe
-    // reference tables if concurrent writes within one account become substantial.
+    // ponytail: per-user write serialization suits 2–3 users; use finer-grained
+    // locks if concurrent writes within one account become substantial.
     if (
       this.database.transaction &&
       /^(save_|delete_|update_|remember_|log_)/.test(action)
@@ -388,9 +473,22 @@ export class Service {
             409,
           );
         const { id: _id, expectedRevision: _expected, ...changes } = input;
+        const detached = ["name", "amount", "unit", "items"].some(
+          (key) =>
+            input[key] !== undefined &&
+            !isDeepStrictEqual(input[key], previous[key as keyof Entry]),
+        );
+        if (detached) {
+          await this.dependencies(input.id, []);
+          await this.database.query(
+            "UPDATE entries SET source_input=NULL WHERE user_id=$1 AND id=$2",
+            [this.user.id, input.id],
+          );
+        }
         const updated = {
           ...previous,
           ...changes,
+          ...(detached ? { autoUpdate: false } : {}),
           nutrients: input.items
             ? sum(
                 input.items.map(
