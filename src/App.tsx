@@ -10,6 +10,7 @@ import {
 } from "react";
 import { DateTime } from "luxon";
 import { GoalsDashboard, GoalAdmin } from "./Goals.js";
+import { Progress } from "./Progress.js";
 import {
   action,
   api,
@@ -352,6 +353,7 @@ function SessionApp({
         <nav aria-label="Main navigation">
           {[
             ["Journal", "◷"],
+            ["Progress", "↗"],
             ["Foods", "◈"],
             ["Dishes", "▤"],
             ["Settings", "⚙"],
@@ -399,25 +401,31 @@ function SessionApp({
             <span className="eyebrow">
               {tab === "Journal"
                 ? "YOUR FOOD JOURNAL"
-                : "YOUR EVERYDAY ESSENTIALS"}
+                : tab === "Progress"
+                  ? "THE BIGGER PICTURE"
+                  : "YOUR EVERYDAY ESSENTIALS"}
             </span>
             <h1>
               {tab === "Journal"
                 ? "Your day, on the record."
-                : tab === "Foods"
-                  ? "Foods you know."
-                  : tab === "Dishes"
-                    ? "Make it once. Save it here."
-                    : "Make yourself at home."}
+                : tab === "Progress"
+                  ? "See your progress."
+                  : tab === "Foods"
+                    ? "Foods you know."
+                    : tab === "Dishes"
+                      ? "Make it once. Save it here."
+                      : "Make yourself at home."}
             </h1>
             <p>
               {tab === "Journal"
                 ? "A little attention goes a long way."
-                : tab === "Foods"
-                  ? "Find a product, check its label, and make it a regular."
-                  : tab === "Dishes"
-                    ? "Flexible recipes for the meals you come back to."
-                    : "Your preferences, security, and agent connection."}
+                : tab === "Progress"
+                  ? "Your nutrition and daily check-ins, over time."
+                  : tab === "Foods"
+                    ? "Find a product, check its label, and make it a regular."
+                    : tab === "Dishes"
+                      ? "Flexible recipes for the meals you come back to."
+                      : "Your preferences, security, and agent connection."}
             </p>
           </div>
           {tab === "Journal" ? (
@@ -642,6 +650,16 @@ function SessionApp({
               </aside>
             </div>
           </>
+        )}
+        {tab === "Progress" && (
+          <Progress
+            today={today()}
+            revision={revision}
+            onDay={(date) => {
+              selectPeriod("Day", date);
+              setTab("Journal");
+            }}
+          />
         )}
         {tab === "Foods" && (
           <>
