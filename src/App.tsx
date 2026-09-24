@@ -162,12 +162,38 @@ function SessionApp({
   const [query, setQuery] = useState("");
   const [searchResult, setSearchResult] = useState<SearchResult>();
   const [stats, setStats] = useState<Stats>();
-  const [period, setPeriod] = useState("Today");
+  const [period, setPeriod] = useState("Day");
   const [dates, setDates] = useState({ start: "", end: "" });
   const today = () =>
     DateTime.now()
       .setZone(user?.timezone || "America/Los_Angeles")
       .toISODate()!;
+  function selectPeriod(next: string, date = dates.start || today()) {
+    setPeriod(next);
+    if (next === "Custom") return;
+    const anchor = DateTime.fromISO(date, { zone: user?.timezone });
+    const unit = next === "Week" ? "week" : next === "Month" ? "month" : "day";
+    setDates({
+      start: anchor.startOf(unit).toISODate()!,
+      end: anchor.endOf(unit).toISODate()!,
+    });
+  }
+  function movePeriod(direction: number) {
+    const unit =
+      period === "Week" ? "weeks" : period === "Month" ? "months" : "days";
+    selectPeriod(
+      period,
+      DateTime.fromISO(dates.start, { zone: user?.timezone })
+        .plus({ [unit]: direction })
+        .toISODate()!,
+    );
+  }
+  const dateLabel =
+    !dates.start || !dates.end
+      ? "Choose a date range"
+      : dates.start === dates.end
+        ? `${dates.start === today() ? "Today · " : dates.start === DateTime.fromISO(today()).minus({ days: 1 }).toISODate() ? "Yesterday · " : ""}${DateTime.fromISO(dates.start).toFormat("ccc, LLL d, yyyy")}`
+        : `${DateTime.fromISO(dates.start).toFormat("LLL d, yyyy")} – ${DateTime.fromISO(dates.end).toFormat("LLL d, yyyy")}`;
   const fail = (e: unknown) =>
     setError(
       e instanceof Error
@@ -208,17 +234,9 @@ function SessionApp({
   useEffect(() => {
     if (!user) return;
     const now = DateTime.now().setZone(user.timezone);
-    if (period !== "Custom")
-      setDates({
-        start: (period === "Week"
-          ? now.startOf("week")
-          : period === "Month"
-            ? now.startOf("month")
-            : now
-        ).toISODate()!,
-        end: now.toISODate()!,
-      });
-  }, [user, period]);
+    setPeriod("Day");
+    setDates({ start: now.toISODate()!, end: now.toISODate()! });
+  }, [user]);
   useEffect(() => {
     setStats(undefined);
     if (!user || !dates.start || !dates.end) return;
@@ -373,7 +391,7 @@ function SessionApp({
           <div>
             <span className="eyebrow">
               {tab === "Journal"
-                ? DateTime.now().setZone(user.timezone).toFormat("cccc, LLLL d")
+                ? "YOUR FOOD JOURNAL"
                 : "YOUR EVERYDAY ESSENTIALS"}
             </span>
             <h1>
@@ -425,13 +443,13 @@ function SessionApp({
         {tab === "Journal" && (
           <>
             <div className="period-row">
-              <div className="segmented" aria-label="Statistics period">
-                {["Today", "Week", "Month", "Custom"].map((p) => (
+              <div className="segmented" aria-label="Journal period">
+                {["Day", "Week", "Month", "Custom"].map((p) => (
                   <button
                     aria-pressed={period === p}
                     className={period === p ? "active" : ""}
                     key={p}
-                    onClick={() => setPeriod(p)}
+                    onClick={() => selectPeriod(p)}
                   >
                     {p}
                   </button>
@@ -462,13 +480,42 @@ function SessionApp({
                     </Field>
                   </>
                 ) : (
-                  <span>
-                    {dates.start}{" "}
-                    {dates.start !== dates.end && `— ${dates.end}`}
-                  </span>
+                  <div className="date-navigation">
+                    <button
+                      aria-label={`Previous ${period.toLowerCase()}`}
+                      onClick={() => movePeriod(-1)}
+                    >
+                      ‹
+                    </button>
+                    <input
+                      aria-label="Journal date"
+                      type="date"
+                      value={dates.start}
+                      onChange={(e) => {
+                        if (e.target.value)
+                          selectPeriod(period, e.target.value);
+                      }}
+                    />
+                    <button
+                      aria-label={`Next ${period.toLowerCase()}`}
+                      onClick={() => movePeriod(1)}
+                    >
+                      ›
+                    </button>
+                  </div>
                 )}
+                <button
+                  className="today-shortcut"
+                  onClick={() => selectPeriod("Day", today())}
+                >
+                  Today
+                </button>
               </div>
             </div>
+            <p className="journal-date-label" aria-live="polite">
+              {dateLabel}
+              {period === "Week" ? " · Mon–Sun" : ""}
+            </p>
             <section className="metrics" aria-label="Nutrition summary">
               <article className="metric energy">
                 <span>ENERGY</span>
@@ -482,7 +529,11 @@ function SessionApp({
                 <div className="energy-line" />
                 <p>
                   {stats?.entries.length || 0} foods logged ·{" "}
-                  {period === "Today" ? "today" : "this period"}
+                  {dates.start === dates.end
+                    ? dates.start === today()
+                      ? "today"
+                      : "this day"
+                    : "this period"}
                 </p>
               </article>
               {(["protein", "carbs", "fat"] as const).map((key, i) => (
@@ -519,7 +570,7 @@ function SessionApp({
             <div className="journal-grid">
               <section className="panel">
                 <div className="section-heading">
-                  <h2>{period === "Today" ? "On the menu" : "Food journal"}</h2>
+                  <h2>{period === "Day" ? "On the menu" : "Food journal"}</h2>
                   <span className="tag">
                     {stats?.entries.length || 0} entries
                   </span>
@@ -952,7 +1003,11 @@ function SessionApp({
               products={products}
               dishes={dishes}
               target={logTarget}
-              defaultDate={today()}
+              defaultDate={
+                tab === "Journal" && dates.start === dates.end
+                  ? dates.start
+                  : today()
+              }
               defaultUnit={user.unitSystem === "us" ? "oz" : "g"}
               busy={busy}
               onSave={(input) =>

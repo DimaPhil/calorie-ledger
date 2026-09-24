@@ -2,8 +2,75 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
+import { DateTime } from "luxon";
 // These journeys intercept requests to simulate failures; service workers can bypass routing.
 test.use({ serviceWorkers: "block" });
+test("journal date navigation keeps entries, totals and logging on the selected day", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${info.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  const picker = page.getByLabel("Journal date", { exact: true });
+  await expect(picker).not.toHaveValue("");
+  const today = await picker.inputValue();
+  const yesterday = DateTime.fromISO(today).minus({ days: 1 }).toISODate()!;
+  const previous = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/actions/get_stats") &&
+      r.request().postDataJSON().start === yesterday &&
+      r.request().postDataJSON().end === yesterday,
+  );
+  await page.getByRole("button", { name: "Previous day", exact: true }).click();
+  expect((await previous).ok()).toBe(true);
+  await expect(picker).toHaveValue(yesterday);
+  await expect(page.locator(".journal-date-label")).toContainText("Yesterday");
+  await page.getByRole("button", { name: "＋ Log food", exact: true }).click();
+  await expect(page.getByLabel("Date eaten", { exact: true })).toHaveValue(
+    yesterday,
+  );
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Next day", exact: true }).click();
+  await expect(picker).toHaveValue(today);
+  await picker.fill("2024-03-01");
+  await page.getByRole("button", { name: "Previous day", exact: true }).click();
+  await expect(picker).toHaveValue("2024-02-29");
+  await page.getByRole("button", { name: "Month", exact: true }).click();
+  await expect(page.locator(".journal-date-label")).toContainText(
+    "Feb 1, 2024 – Feb 29, 2024",
+  );
+  await page.getByRole("button", { name: "Next month", exact: true }).click();
+  await expect(picker).toHaveValue("2024-03-01");
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(page.locator(".journal-date-label")).toContainText(
+    "Feb 26, 2024 – Mar 3, 2024",
+  );
+  await page
+    .getByRole("button", { name: "Previous week", exact: true })
+    .click();
+  await expect(picker).toHaveValue("2024-02-19");
+  await page.getByRole("button", { name: "Custom", exact: true }).click();
+  await expect(page.getByLabel("From", { exact: true })).toHaveValue(
+    "2024-02-19",
+  );
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(picker).toHaveValue(today);
+  await expect(
+    page.getByRole("button", { name: "Day", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+});
 test("journal detail modal edits component snapshots without changing saved foods", async ({
   page,
 }, info) => {
