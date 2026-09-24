@@ -231,6 +231,10 @@ export function Progress({
   onDay: (date: string) => void;
 }) {
   const [windowDays, setWindowDays] = useState(30);
+  const [customRange, setCustomRange] = useState({
+    start: PROGRESS_START_DATE,
+    end: today,
+  });
   const [nutrient, setNutrient] = useState("protein");
   const [recovery, setRecovery] = useState("sleep");
   const [body, setBody] = useState("weight");
@@ -239,22 +243,32 @@ export function Progress({
   );
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const start = [
-    PROGRESS_START_DATE,
-    DateTime.fromISO(today)
-      .minus({ days: windowDays - 1 })
-      .toISODate()!,
-  ]
-    .sort()
-    .at(-1)!;
+  const start =
+    windowDays === 0
+      ? customRange.start
+      : [
+          PROGRESS_START_DATE,
+          DateTime.fromISO(today)
+            .minus({ days: windowDays - 1 })
+            .toISODate()!,
+        ]
+          .sort()
+          .at(-1)!;
+  const end = windowDays === 0 ? customRange.end : today;
+  const rangeError =
+    !start || !end || start < PROGRESS_START_DATE || end > today || start > end
+      ? "Choose dates from September 24, 2026 through today, with the end on or after the start."
+      : DateTime.fromISO(end).diff(DateTime.fromISO(start), "days").days >= 366
+        ? "Choose an interval of up to 366 days."
+        : "";
   useEffect(() => {
     let active = true;
     setData(null);
     setError("");
-    if (start > today) return;
+    if (rangeError) return;
     Promise.all([
-      action<Stats>("get_stats", { start, end: today }),
-      action<GoalsData>("get_goals", { start, end: today }),
+      action<Stats>("get_stats", { start, end }),
+      action<GoalsData>("get_goals", { start, end }),
     ])
       .then(([stats, goals]) => {
         if (active) setData({ stats, goals });
@@ -266,7 +280,7 @@ export function Progress({
     return () => {
       active = false;
     };
-  }, [start, today, revision, retry]);
+  }, [start, end, rangeError, revision, retry]);
   useEffect(() => {
     const refresh = () => setRetry((v) => v + 1);
     window.addEventListener("ledger-goals-changed", refresh);
@@ -280,24 +294,65 @@ export function Progress({
           adds to the picture.
         </p>
       </div>
-      <div className="progress-ranges" aria-label="Progress period">
-        {[7, 30, 90].map((days) => (
+      <div className="progress-period">
+        <div className="progress-ranges" aria-label="Progress period">
+          {[7, 30, 90].map((days) => (
+            <button
+              key={days}
+              aria-pressed={days === windowDays}
+              onClick={() => setWindowDays(days)}
+            >
+              {days} days
+            </button>
+          ))}
           <button
-            key={days}
-            aria-pressed={days === windowDays}
-            onClick={() => setWindowDays(days)}
+            aria-pressed={windowDays === 0}
+            onClick={() => {
+              if (windowDays !== 0) setCustomRange({ start, end });
+              setWindowDays(0);
+            }}
           >
-            {days} days
+            Custom
           </button>
-        ))}
+        </div>
+        {windowDays === 0 && (
+          <div className="progress-dates">
+            <label>
+              From
+              <input
+                aria-label="Progress start date"
+                type="date"
+                min={PROGRESS_START_DATE}
+                max={today}
+                value={customRange.start}
+                onChange={(e) =>
+                  setCustomRange({ ...customRange, start: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              To
+              <input
+                aria-label="Progress end date"
+                type="date"
+                min={PROGRESS_START_DATE}
+                max={today}
+                value={customRange.end}
+                onChange={(e) =>
+                  setCustomRange({ ...customRange, end: e.target.value })
+                }
+              />
+            </label>
+          </div>
+        )}
       </div>
     </div>
   );
-  if (start > today)
+  if (rangeError)
     return (
       <section className="progress-page">
         {toolbar}
-        <p>Progress tracking begins {label(PROGRESS_START_DATE)}.</p>
+        <p role="alert">{rangeError}</p>
       </section>
     );
   if (error)

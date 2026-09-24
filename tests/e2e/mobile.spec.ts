@@ -13,10 +13,10 @@ test("phone pages and dialogs fit the viewport", async ({ page }, info) => {
     .fill("test-password-12345");
   await page.getByRole("button", { name: "Sign in →" }).click();
   await expect(page.locator(".metrics")).toBeVisible();
-  for (const width of [320, 390, 430, 621, 744]) {
-    await page.setViewportSize({ width, height: 844 });
-    for (const tab of ["Journal", "Progress", "Foods", "Dishes", "Settings"]) {
-      await page.getByRole("button", { name: tab, exact: true }).click();
+  for (const tab of ["Journal", "Progress", "Foods", "Dishes", "Settings"]) {
+    await page.getByRole("button", { name: tab, exact: true }).click();
+    for (const width of [320, 390, 430, 621, 744]) {
+      await page.setViewportSize({ width, height: 844 });
       await expect
         .poll(() =>
           page.evaluate(

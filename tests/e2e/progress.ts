@@ -51,6 +51,19 @@ export async function checkProgress(page: Page, info: TestInfo) {
     .filter({ has: page.getByRole("heading", { name: "Calories over days" }) });
   await expect(calories).toContainText("1,500");
   await expect(calories).toContainText("Average from 2 complete days");
+  await page.getByRole("button", { name: "Custom", exact: true }).click();
+  await page.getByLabel("Progress end date").fill("2026-09-25");
+  await expect(calories).toContainText("Average from 1 complete days");
+  await expect(calories.locator(".progress-big")).toContainText("1,000");
+  await expect(page.getByRole("button", { name: /Sep 27:/ })).toHaveCount(0);
+  await page.getByLabel("Progress start date").fill("2026-09-26");
+  await expect(page.getByRole("alert")).toContainText(
+    "end on or after the start",
+  );
+  await expect(page.locator(".progress-panels")).toHaveCount(0);
+  await page.getByLabel("Progress start date").fill("2026-09-24");
+  await page.getByLabel("Progress end date").fill("2026-10-01");
+  await expect(calories).toContainText("Average from 2 complete days");
   await expect(
     page.getByRole("region", { name: "Check-in consistency" }),
   ).toContainText("38% checked in");
