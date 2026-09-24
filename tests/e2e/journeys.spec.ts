@@ -446,7 +446,7 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
   await page.getByLabel("From", { exact: true }).fill("2099-01-02");
   await page.getByLabel("Through", { exact: true }).fill("2099-01-01");
   await expect(page.getByRole("alert")).toContainText("Choose a date range");
-  await expect(page.locator(".energy > strong")).toContainText("—");
+  await expect(page.locator(".goal-card")).toHaveCount(0);
   await page.getByRole("button", { name: "Today", exact: true }).click();
   await expect(page.locator(".entries")).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);

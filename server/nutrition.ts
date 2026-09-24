@@ -86,17 +86,17 @@ export function validateDate(date: string) {
       "Use a valid date in YYYY-MM-DD format.",
     );
 }
-export function range(start: string, end: string) {
+export function range(start: string, end: string, maxDays = 366) {
   validateDate(start);
   validateDate(end);
   const count = DateTime.fromISO(end).diff(
     DateTime.fromISO(start),
     "days",
   ).days;
-  if (count < 0 || count > 365)
+  if (count < 0 || count >= maxDays)
     throw new AppError(
       "invalid_range",
-      "Choose a date range of up to 366 days, with the end on or after the start.",
+      `Choose a date range of up to ${maxDays} days, with the end on or after the start.`,
     );
   return Array.from({ length: count + 1 }, (_, i) =>
     DateTime.fromISO(start).plus({ days: i }).toISODate()!,

@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS sessions (
  token_hash text PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  expires_at timestamptz NOT NULL
 );
+CREATE TABLE IF NOT EXISTS goals (
+ user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ effective_date date NOT NULL, data jsonb NOT NULL,
+ PRIMARY KEY(user_id,effective_date)
+);
+CREATE TABLE IF NOT EXISTS checkins (
+ user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ date date NOT NULL, data jsonb NOT NULL,
+ PRIMARY KEY(user_id,date)
+);
 CREATE TABLE IF NOT EXISTS api_tokens (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  name text NOT NULL, token_hash text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now(),

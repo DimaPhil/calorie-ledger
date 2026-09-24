@@ -26,6 +26,7 @@ const offMap: Record<string, [keyof Nutrients, number]> = {
   cholesterol: ["cholesterol", 1000],
   potassium: ["potassium", 1000],
   calcium: ["calcium", 1000],
+  magnesium: ["magnesium", 1000],
   iron: ["iron", 1000],
   "vitamin-c": ["vitaminC", 1000],
   "vitamin-d": ["vitaminD", 1000000],
@@ -77,7 +78,7 @@ export async function externalSearch(
   database: Database,
   query: string,
 ): Promise<{ products: ProductInput[]; warnings: string[] }> {
-  const key = "v2:" + normalize(query);
+  const key = "v3:" + normalize(query);
   const { rows } = await database.query(
     "SELECT data FROM search_cache WHERE query=$1 AND expires_at>now()",
     [key],
@@ -149,6 +150,7 @@ const usdaNutrients: Record<number, [keyof Nutrients, string]> = {
   1092: ["potassium", "MG"],
   1087: ["calcium", "MG"],
   1089: ["iron", "MG"],
+  1090: ["magnesium", "MG"],
   1162: ["vitaminC", "MG"],
   1114: ["vitaminD", "UG"],
 };
