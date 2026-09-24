@@ -353,6 +353,13 @@ export function oauthRouter(database: Database) {
     revocationOptions: { rateLimit: false as const },
     clientRegistrationOptions: { rateLimit: false as const },
   };
+  router.get("/.well-known/oauth-protected-resource/mcp", (_req, res) =>
+    res.json({
+      resource: resource(),
+      authorization_servers: [issuer()],
+      scopes_supported: ["ledger"],
+    }),
+  );
   router.get("/.well-known/oauth-authorization-server", (_req, res) =>
     res.json({
       ...createOAuthMetadata(options),
