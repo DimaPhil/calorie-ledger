@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
+// These journeys intercept requests to simulate failures; service workers can bypass routing.
+test.use({ serviceWorkers: "block" });
 test("OAuth sign-in, consent, callback and revocation", async ({
   page,
 }, testInfo) => {
@@ -110,7 +112,8 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     page.getByRole("heading", { name: "Your day, on the record." }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Foods", exact: true }).click();
-  await page.getByRole("button", { name: "＋ Custom food" }).click();
+  await page.getByRole("button", { name: "＋ Custom food" }).focus();
+  await page.getByRole("button", { name: "＋ Custom food" }).press("Enter");
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Food name", { exact: true }).fill(name);
   await dialog.getByLabel("Brand", { exact: true }).fill("Everyday");
@@ -346,7 +349,8 @@ test("keyboard dialog, incomplete food, and provider outage", async ({
   await expect(
     page.getByText("External lookup is disabled in automated tests."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "＋ Custom food" }).click();
+  await page.getByRole("button", { name: "＋ Custom food" }).focus();
+  await page.getByRole("button", { name: "＋ Custom food" }).press("Enter");
   await expect(page.getByLabel("Food name", { exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
