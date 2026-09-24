@@ -316,19 +316,30 @@ export class Service {
         };
       }
       case "resolve_food": {
-        const result = await search(
+        let result = await search(
           this.database,
           this.user.id,
           input.query,
-          true,
+          false,
           this.provider,
         );
-        if (result.status !== "matched")
+        if (result.requiresProductConfirmation)
+          result = await search(
+            this.database,
+            this.user.id,
+            input.query,
+            true,
+            this.provider,
+          );
+        if (result.requiresProductConfirmation)
           return {
             ...result,
             next: "Ask the user to choose a candidate. Save external products with save_product, then remember_choice.",
           };
-        if (result.candidates[0].nutrients.calories === undefined)
+        const product = result.candidates.find(
+          (p) => p.id === result.preferredProductId,
+        )!;
+        if (product.nutrients.calories === undefined)
           return {
             ...result,
             status: "clarification_required",
@@ -345,13 +356,13 @@ export class Service {
             ),
             question: "How much did you eat? Provide an amount and unit.",
           };
-        const weight = grams(result.candidates[0], input);
+        const weight = grams(product, input);
         return {
           ...result,
           status: "ready",
           grams: weight,
-          nutrients: scale(result.candidates[0].nutrients, weight / 100),
-          next: "Call log_food with productId, amount, unit, date, meal, and a stable idempotencyKey. Nothing has been logged yet.",
+          nutrients: scale(product.nutrients, weight / 100),
+          next: "Use preferredProductId as log_food.productId without reconfirming food identity. Include amount, unit, portionLabel if supplied, date, meal, and a stable idempotencyKey. Nothing has been logged yet.",
         };
       }
       case "log_food":

@@ -141,6 +141,9 @@ export type SearchResult = {
   status: "matched" | "choose" | "not_found";
   query: string;
   candidates: Product[];
+  preferredProductId: string | null;
+  matchType: "confirmed_alias" | "exact_saved" | "none";
+  requiresProductConfirmation: boolean;
   reason: string;
   warnings: string[];
 };
