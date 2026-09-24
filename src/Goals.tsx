@@ -39,6 +39,7 @@ export function GoalsDashboard({
   const [data, setData] = useState<GoalsData | null>(null);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const single = stats.start === stats.end;
   useEffect(() => {
     let active = true;
@@ -105,125 +106,144 @@ export function GoalsDashboard({
           ? "At a glance: eaten, target and percentage. Limits show budget used."
           : "Averages use days you marked complete. Unlogged days are never treated as zero."}
       </p>
-      <div className="metrics goal-grid">
-        {metricDefinitions.map((metric) => {
-          let total = 0;
-          let known = 0;
-          let expected = selectedDays.length;
-          let target = 0;
-          let partial = false;
-          if (metric.period === "week") {
-            const start = monday(targetDate);
-            const checks = data.checkins.filter(
-              (c) => c.date >= start && c.date <= shift(start, 6),
-            );
-            const values = checks
-              .map((c) => (c as unknown as Record<string, unknown>)[metric.key])
-              .filter((v): v is number => typeof v === "number");
-            total = values.reduce((a, b) => a + b, 0);
-            known = values.length;
-            expected = 7;
-            partial = values.length < 7;
-            target = goalsOn(data, targetDate)[metric.key];
-          } else {
-            for (const day of selectedDays) {
-              const value =
-                metric.source === "food"
-                  ? (day.nutrients as Record<string, number | undefined>)[
-                      metric.key
-                    ]
-                  : (
-                      data.checkins.find(
-                        (c) => c.date === day.date,
-                      ) as unknown as Record<string, unknown> | undefined
-                    )?.[metric.key];
-              if (
-                typeof value === "number" &&
-                (metric.source !== "food" || day.count > 0)
-              ) {
-                total += value;
-                target += goalsOn(data, day.date)[metric.key];
-                known++;
+      <div className="metrics goal-grid" id="goal-metrics">
+        {metricDefinitions
+          .filter(
+            (metric) =>
+              expanded ||
+              ["calories", "protein", "carbs", "fat"].includes(metric.key),
+          )
+          .map((metric) => {
+            let total = 0;
+            let known = 0;
+            let expected = selectedDays.length;
+            let target = 0;
+            let partial = false;
+            if (metric.period === "week") {
+              const start = monday(targetDate);
+              const checks = data.checkins.filter(
+                (c) => c.date >= start && c.date <= shift(start, 6),
+              );
+              const values = checks
+                .map(
+                  (c) => (c as unknown as Record<string, unknown>)[metric.key],
+                )
+                .filter((v): v is number => typeof v === "number");
+              total = values.reduce((a, b) => a + b, 0);
+              known = values.length;
+              expected = 7;
+              partial = values.length < 7;
+              target = goalsOn(data, targetDate)[metric.key];
+            } else {
+              for (const day of selectedDays) {
+                const value =
+                  metric.source === "food"
+                    ? (day.nutrients as Record<string, number | undefined>)[
+                        metric.key
+                      ]
+                    : (
+                        data.checkins.find(
+                          (c) => c.date === day.date,
+                        ) as unknown as Record<string, unknown> | undefined
+                      )?.[metric.key];
+                if (
+                  typeof value === "number" &&
+                  (metric.source !== "food" || day.count > 0)
+                ) {
+                  total += value;
+                  target += goalsOn(data, day.date)[metric.key];
+                  known++;
+                }
+                if (
+                  metric.source === "food" &&
+                  stats.entries
+                    .filter((e) => e.date === day.date)
+                    .some((e) =>
+                      e.items.some(
+                        (i) =>
+                          (i.nutrients as Record<string, unknown>)[
+                            metric.key
+                          ] === undefined,
+                      ),
+                    )
+                )
+                  partial = true;
               }
-              if (
-                metric.source === "food" &&
-                stats.entries
-                  .filter((e) => e.date === day.date)
-                  .some((e) =>
-                    e.items.some(
-                      (i) =>
-                        (i.nutrients as Record<string, unknown>)[metric.key] ===
-                        undefined,
-                    ),
-                  )
-              )
-                partial = true;
+              target = known
+                ? target / known
+                : goalsOn(data, targetDate)[metric.key];
+              if (known) total /= known;
+              partial ||= known < expected;
             }
-            target = known
-              ? target / known
-              : goalsOn(data, targetDate)[metric.key];
-            if (known) total /= known;
-            partial ||= known < expected;
-          }
-          const percent =
-            known && target > 0 ? Math.round((total / target) * 100) : null;
-          const over = metric.kind === "limit" && total > target;
-          const status =
-            percent === null
-              ? "Not tracked"
-              : over
-                ? `Above limit${partial ? " · known values only" : ""}`
-                : partial
-                  ? "Known values only"
-                  : metric.kind === "limit"
-                    ? "Budget used"
-                    : metric.kind === "target" && total > target
-                      ? `${number(total - target)} ${metric.unit} above target`
-                      : total >= target
-                        ? "Target reached"
-                        : `${number(target - total)} ${metric.unit} to target`;
-          return (
-            <article
-              key={metric.key}
-              className={`goal-card ${over ? "goal-over" : ""} ${percent === null ? "goal-unknown" : ""}`}
-            >
-              <div className="goal-card-title">
-                <h3>{metric.label}</h3>
-                <strong className="goal-percent">
-                  {percent === null ? "—" : `${percent}%`}
-                </strong>
-              </div>
-              <div className="goal-amount">
-                <strong>{known ? number(total) : "—"}</strong>
-                <span>
-                  {" "}
-                  / {number(target)} {metric.unit}
-                  {metric.kind === "limit" ? " limit" : ""}
-                </span>
-              </div>
-              <progress
-                max="100"
-                value={percent === null ? 0 : Math.min(percent, 100)}
-                aria-label={`${metric.label}: ${known ? `${number(total)} of ${number(target)} ${metric.unit}, ${percent}%${partial ? ", incomplete data" : ""}` : "not tracked"}`}
-              />
-              <small>
-                {status}
-                {metric.period === "week"
-                  ? ` · week of ${monday(targetDate)}`
-                  : !single && known
-                    ? ` · ${known} known days`
-                    : ""}
-              </small>
-            </article>
-          );
-        })}
+            const percent =
+              known && target > 0 ? Math.round((total / target) * 100) : null;
+            const over = metric.kind === "limit" && total > target;
+            const status =
+              percent === null
+                ? "Not tracked"
+                : over
+                  ? `Above limit${partial ? " · known values only" : ""}`
+                  : partial
+                    ? "Known values only"
+                    : metric.kind === "limit"
+                      ? "Budget used"
+                      : metric.kind === "target" && total > target
+                        ? `${number(total - target)} ${metric.unit} above target`
+                        : total >= target
+                          ? "Target reached"
+                          : `${number(target - total)} ${metric.unit} to target`;
+            return (
+              <article
+                key={metric.key}
+                className={`goal-card ${over ? "goal-over" : ""} ${percent === null ? "goal-unknown" : ""}`}
+              >
+                <div className="goal-card-title">
+                  <h3>{metric.label}</h3>
+                  <strong className="goal-percent">
+                    {percent === null ? "—" : `${percent}%`}
+                  </strong>
+                </div>
+                <div className="goal-amount">
+                  <strong>{known ? number(total) : "—"}</strong>
+                  <span>
+                    {" "}
+                    / {number(target)} {metric.unit}
+                    {metric.kind === "limit" ? " limit" : ""}
+                  </span>
+                </div>
+                <progress
+                  max="100"
+                  value={percent === null ? 0 : Math.min(percent, 100)}
+                  aria-label={`${metric.label}: ${known ? `${number(total)} of ${number(target)} ${metric.unit}, ${percent}%${partial ? ", incomplete data" : ""}` : "not tracked"}`}
+                />
+                <small>
+                  {status}
+                  {metric.period === "week"
+                    ? ` · week of ${monday(targetDate)}`
+                    : !single && known
+                      ? ` · ${known} known days`
+                      : ""}
+                </small>
+              </article>
+            );
+          })}
       </div>
-      <p className="goals-footnote">
-        Missing values are unknown, not zero. Free sugars differ from total and
-        added sugars. Drink, fruit & vegetable and fish totals are entered in
-        the check-in; they are not added again from food records. Weekly fish
-        progress uses the week containing the selected end date.
-      </p>
+      <button
+        className="text-button"
+        aria-expanded={expanded}
+        aria-controls="goal-metrics"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? "Show less" : "Show more"}
+      </button>
+      {expanded && (
+        <p className="goals-footnote">
+          Missing values are unknown, not zero. Free sugars differ from total
+          and added sugars. Drink, fruit & vegetable and fish totals are entered
+          in the check-in; they are not added again from food records. Weekly
+          fish progress uses the week containing the selected end date.
+        </p>
+      )}
       {single ? (
         <DailyCheckIn
           key={`${stats.start}:${refresh}`}

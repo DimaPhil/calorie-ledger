@@ -34,6 +34,12 @@ export async function checkGoals(page: Page, info: TestInfo) {
       .locator(".goal-card")
       .filter({ has: page.getByRole("heading", { name, exact: true }) });
   await expect(card("Energy")).toContainText("50%");
+  await expect(page.locator(".goal-card")).toHaveCount(4);
+  await page.getByRole("button", { name: "Show more", exact: true }).click();
+  await expect(page.locator(".goal-card")).toHaveCount(16);
+  await page.getByRole("button", { name: "Show less", exact: true }).click();
+  await expect(page.locator(".goal-card")).toHaveCount(4);
+  await page.getByRole("button", { name: "Show more", exact: true }).click();
   await expect(card("Free sugars")).toContainText("120%");
   await expect(card("Free sugars")).toContainText("Above limit");
   await expect(card("Fiber")).toContainText("Not tracked");
