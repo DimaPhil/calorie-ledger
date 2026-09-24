@@ -1678,6 +1678,7 @@ function EntryRow({
                   setDraft(updated);
                   setComponentAmount(updated.amount);
                   setEditing(false);
+                  setOpened(false);
                 } catch (e) {
                   setError(
                     e instanceof Error ? e.message : "Could not save entry.",

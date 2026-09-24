@@ -39,7 +39,7 @@ test("journal detail modal edits component snapshots without changing saved food
         amount: 100,
         unit: "g",
         date: profile.today,
-        idempotencyKey: `modal-entry-${info.project.name}`,
+        idempotencyKey: `modal-entry-${info.project.name}-${info.retry}`,
       },
     })
   ).json();
