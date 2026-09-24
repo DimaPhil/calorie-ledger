@@ -4,6 +4,137 @@ import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 // These journeys intercept requests to simulate failures; service workers can bypass routing.
 test.use({ serviceWorkers: "block" });
+test("journal detail modal edits component snapshots without changing saved foods", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${info.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  await expect(page.locator(".metrics")).toBeVisible();
+  const headers = { Origin: "http://127.0.0.1:3100" };
+  const product = await (
+    await page.request.post("/api/actions/save_product", {
+      headers,
+      data: {
+        product: {
+          name: `Modal oats ${info.project.name}`,
+          nutrients: { calories: 100, protein: 5 },
+        },
+      },
+    })
+  ).json();
+  const profile = await (
+    await page.request.post("/api/actions/get_profile", { headers, data: {} })
+  ).json();
+  const logged = await (
+    await page.request.post("/api/actions/log_food", {
+      headers,
+      data: {
+        productId: product.id,
+        amount: 100,
+        unit: "g",
+        date: profile.today,
+        idempotencyKey: `modal-entry-${info.project.name}`,
+      },
+    })
+  ).json();
+  await page.reload();
+  const opener = page.getByRole("button", {
+    name: `View entry: Modal oats ${info.project.name}`,
+    exact: true,
+  });
+  await opener.focus();
+  await opener.press("Enter");
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("heading", { name: "Entry nutrition" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(opener).toBeFocused();
+  await opener.click();
+  await dialog.getByRole("button", { name: "Edit entry", exact: true }).click();
+  await dialog
+    .getByLabel("Entry name", { exact: true })
+    .fill(`Corrected meal ${info.project.name}`);
+  await dialog.getByLabel("Entry amount", { exact: true }).fill("200");
+  await dialog
+    .getByRole("button", { name: "Scale components to this amount" })
+    .click();
+  await expect(
+    dialog.getByLabel("Calories (kcal)", { exact: true }),
+  ).toHaveValue("200");
+  await dialog.getByLabel("Calories (kcal)", { exact: true }).fill("180");
+  await dialog
+    .getByRole("button", { name: "Add component", exact: true })
+    .click();
+  const second = dialog.getByRole("group", {
+    name: "Component 2",
+    exact: true,
+  });
+  await second.getByLabel("Component name").fill("Extra fruit");
+  await second.getByLabel("Component grams").fill("25");
+  await second.getByLabel("Calories (kcal)").fill("20");
+  await expect(dialog.getByRole("status")).toContainText(
+    "Entry total: 200 kcal",
+  );
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await expect(page.locator("body")).toHaveJSProperty(
+    "scrollWidth",
+    await page.locator("body").evaluate((e) => e.clientWidth),
+  );
+  await page.screenshot({
+    path: info.outputPath("entry-editor.png"),
+    fullPage: true,
+  });
+  await dialog.getByRole("button", { name: "Save correction" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page
+      .locator(".entry")
+      .filter({ hasText: `Corrected meal ${info.project.name}` })
+      .locator(".entry-energy"),
+  ).toContainText("200");
+  const products = await (
+    await page.request.post("/api/actions/list_products", { headers, data: {} })
+  ).json();
+  expect(
+    products.find((p: { id: string }) => p.id === product.id).nutrients
+      .calories,
+  ).toBe(100);
+  await page
+    .getByRole("button", {
+      name: `View entry: Corrected meal ${info.project.name}`,
+      exact: true,
+    })
+    .click();
+  await dialog.getByRole("button", { name: "Edit entry", exact: true }).click();
+  await dialog.getByLabel("Entry notes").fill("Keep this draft");
+  await page.request.post("/api/actions/update_entry", {
+    headers,
+    data: {
+      id: logged.entry.id,
+      date: profile.today,
+      meal: "snack",
+      notes: "Changed elsewhere",
+      expectedRevision: 1,
+    },
+  });
+  await dialog.getByRole("button", { name: "Save correction" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("changed elsewhere");
+  await expect(dialog.getByLabel("Entry notes")).toHaveValue("Keep this draft");
+});
 test("OAuth sign-in, consent, callback and revocation", async ({
   page,
 }, testInfo) => {

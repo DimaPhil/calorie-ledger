@@ -444,6 +444,29 @@ strong {
   flex: 1;
   min-width: 0;
 }
+.entry-open {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  text-align: left;
+}
+.entry-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.entry-fields .ingredient {
+  border: 1px solid #d8dfd1;
+  min-width: 0;
+}
+.entry-fields .form-footer {
+  flex-wrap: wrap;
+}
 .entry-content > strong {
   font-size: 14px;
 }
@@ -658,6 +681,10 @@ dialog::backdrop {
   backdrop-filter: blur(3px);
 }
 .modal-heading {
+  position: sticky;
+  top: -28px;
+  z-index: 1;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -731,7 +758,7 @@ dialog::backdrop {
   border: 1px solid #e8dbb9;
   padding: 13px 16px;
   border-radius: 8px;
-  color: #7e6f48;
+  color: #6e603b;
   font-size: 12px;
 }
 .error {
@@ -1127,6 +1154,9 @@ pre {
     padding: 20px;
     max-height: 92vh;
     max-height: 92dvh;
+  }
+  .modal-heading {
+    top: -20px;
   }
   .portion-row {
     flex-wrap: wrap;
