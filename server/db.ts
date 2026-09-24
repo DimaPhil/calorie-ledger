@@ -108,6 +108,15 @@ CREATE TABLE IF NOT EXISTS entries (
  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(user_id, idempotency_key)
 );
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted boolean NOT NULL DEFAULT false;
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS source_input jsonb;
+CREATE UNIQUE INDEX IF NOT EXISTS entries_owner_id ON entries(user_id,id);
+CREATE TABLE IF NOT EXISTS entry_dependencies (
+ user_id uuid NOT NULL, entry_id uuid NOT NULL,
+ kind text NOT NULL CHECK(kind IN ('products','dishes')), source_id uuid NOT NULL,
+ PRIMARY KEY(user_id,kind,source_id,entry_id),
+ FOREIGN KEY(user_id,entry_id) REFERENCES entries(user_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS entry_dependencies_entry ON entry_dependencies(user_id,entry_id);
 CREATE INDEX IF NOT EXISTS entries_user_date ON entries(user_id, date);
 CREATE INDEX IF NOT EXISTS products_user ON products(user_id);
 CREATE INDEX IF NOT EXISTS dishes_user ON dishes(user_id);

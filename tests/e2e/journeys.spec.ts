@@ -5,6 +5,69 @@ import { createServer } from "node:http";
 import { DateTime } from "luxon";
 // These journeys intercept requests to simulate failures; service workers can bypass routing.
 test.use({ serviceWorkers: "block" });
+test("saved food correction updates a linked journal entry through the UI", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${info.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  await expect(page.locator(".metrics")).toBeVisible();
+  const headers = { Origin: "http://127.0.0.1:3100" };
+  const name = `Linked test ${info.project.name} ${info.retry}`;
+  const product = await (
+    await page.request.post("/api/actions/save_product", {
+      headers,
+      data: { product: { name, nutrients: { calories: 100 } } },
+    })
+  ).json();
+  const profile = await (
+    await page.request.post("/api/actions/get_profile", { headers, data: {} })
+  ).json();
+  await page.request.post("/api/actions/log_food", {
+    headers,
+    data: {
+      productId: product.id,
+      amount: 50,
+      unit: "g",
+      date: profile.today,
+      idempotencyKey: `linked-ui-${info.project.name}-${info.retry}`,
+    },
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Foods", exact: true }).click();
+  const card = page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  await card.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Saving corrections recalculates linked journal entries, including dishes using this food.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await page.getByLabel("Energy (kcal)", { exact: true }).fill("200");
+  await page.getByRole("dialog").getByRole("button", { name: /Save/ }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  const row = page.getByRole("button", {
+    name: `View entry: ${name}`,
+    exact: true,
+  });
+  await expect(row).toContainText("100");
+  await row.click();
+  await expect(
+    page.getByText(
+      "Automatically updates when its saved food or recipe changes.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+});
 test("journal date navigation keeps entries, totals and logging on the selected day", async ({
   page,
 }, info) => {

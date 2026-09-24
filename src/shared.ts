@@ -121,6 +121,7 @@ export type Dish = DishInput & { id: string; updatedAt: string };
 export type LogInput = z.infer<typeof logSchema>;
 export type Entry = {
   id: string;
+  autoUpdate?: boolean;
   revision?: number;
   name: string;
   date: string;

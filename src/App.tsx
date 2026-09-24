@@ -1094,6 +1094,12 @@ function ProductForm({
         });
       }}
     >
+      {product && (
+        <p className="form-note">
+          Saving corrections recalculates linked journal entries, including
+          dishes using this food. Older entries and manual overrides stay fixed.
+        </p>
+      )}
       <div className="row">
         <Field label="Food name">
           <input
@@ -1348,6 +1354,13 @@ function DishForm({
         onSave(draft);
       }}
     >
+      {dish && (
+        <p className="form-note">
+          Saving corrections recalculates linked journal entries. For a
+          different recipe or batch, create a new dish instead. Older entries
+          and manual overrides stay fixed.
+        </p>
+      )}
       <Field label="Dish name">
         <input
           autoFocus
@@ -1660,6 +1673,11 @@ function EntryRow({
                 {draft.amount} {draft.unit} · {draft.meal} · {draft.date}
               </p>
               {draft.notes && <p>{draft.notes}</p>}
+              <p className="muted">
+                {draft.autoUpdate
+                  ? "Automatically updates when its saved food or recipe changes."
+                  : "Fixed values: saved food and recipe edits do not change this entry."}
+              </p>
               <h3>Entry nutrition</h3>
               <dl className="nutrient-list">
                 {nutrientKeys.map((k) => (
@@ -1744,6 +1762,13 @@ function EntryRow({
               }}
             >
               <fieldset disabled={busy} className="entry-fields">
+                {draft.autoUpdate && (
+                  <p className="form-note">
+                    Changing the name, amount or components fixes this entry’s
+                    values and stops automatic updates. Date, meal and notes
+                    alone keep it linked.
+                  </p>
+                )}
                 <p className="form-note">
                   Edits apply only to this entry. Nutrition values below are
                   totals for each component, not per 100g. Blank means unknown.
@@ -2097,17 +2122,27 @@ function Settings({
         <span className="eyebrow">MADE FOR YOUR AGENT</span>
         <h2>Connect with MCP</h2>
         <p>
-          Add this Streamable HTTP endpoint to Hermes or another MCP client. Use
-          a token in the Authorization header.
+          In Claude, add this connector URL, choose sign-in and automatic client
+          registration. Other clients can use a token in the Authorization
+          header.
         </p>
         <code className="block-code">{location.origin}/mcp</code>
         <pre>{`{"url":"${location.origin}/mcp",\n "headers":{"Authorization":"Bearer YOUR_TOKEN"}}`}</pre>
         <p>
           <a href="/agent-skill.md" target="_blank" rel="noreferrer">
-            Download the agent skill ↗
+            Read the agent skill ↗
           </a>{" "}
-          · Includes product matching, label extraction, and clarification
-          rules.
+          ·{" "}
+          <a href="/calorie-ledger-skill.zip" download>
+            Download skill ZIP for Claude
+          </a>
+        </p>
+        <p>
+          In Claude, enable code execution in Settings → Capabilities, then open
+          Customize → Skills → + → Create skill → Upload a skill. Upload the ZIP
+          and enable it. The skill teaches food matching, cooked/dry conversions
+          and missing-label research; the MCP connector provides access to your
+          ledger. Re-upload the latest ZIP when the skill changes.
         </p>
         <form
           onSubmit={(e) => {
