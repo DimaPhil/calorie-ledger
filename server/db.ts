@@ -117,4 +117,25 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 CREATE TABLE IF NOT EXISTS search_cache (
  query text PRIMARY KEY, data jsonb NOT NULL, expires_at timestamptz NOT NULL
 );
+CREATE TABLE IF NOT EXISTS oauth_clients (
+ id text PRIMARY KEY, data jsonb NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_requests (
+ id text PRIMARY KEY, client_id text NOT NULL REFERENCES oauth_clients(id),
+ data jsonb NOT NULL, csrf_hash text NOT NULL, expires_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_codes (
+ code_hash text PRIMARY KEY, client_id text NOT NULL REFERENCES oauth_clients(id),
+ user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ data jsonb NOT NULL, expires_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_grants (
+ id uuid PRIMARY KEY REFERENCES api_tokens(id) ON DELETE CASCADE,
+ client_id text NOT NULL REFERENCES oauth_clients(id), resource text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+ token_hash text PRIMARY KEY, grant_id uuid NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+ kind text NOT NULL CHECK(kind IN ('access','refresh')), used boolean NOT NULL DEFAULT false,
+ expires_at timestamptz NOT NULL
+);
 `;

@@ -1,11 +1,107 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { createHash } from "node:crypto";
+import { createServer } from "node:http";
+test("OAuth sign-in, consent, callback and revocation", async ({
+  page,
+}, testInfo) => {
+  const origin = "http://127.0.0.1:3100";
+  const receiver = createServer((_req, res) => {
+    res.setHeader("Content-Type", "text/html");
+    res.end("<h1>Connected</h1>");
+  });
+  await new Promise<void>((resolve) =>
+    receiver.listen(0, "127.0.0.1", resolve),
+  );
+  try {
+    const callback = `http://127.0.0.1:${(receiver.address() as { port: number }).port}/callback`;
+    const verifier = "a".repeat(43);
+    const registered = await page.request.post("/register", {
+      data: {
+        client_name: `Browser connector ${testInfo.project.name}`,
+        redirect_uris: [callback],
+        token_endpoint_auth_method: "none",
+      },
+    });
+    expect(registered.status()).toBe(201);
+    const { client_id } = await registered.json();
+    const params = new URLSearchParams({
+      client_id,
+      redirect_uri: callback,
+      response_type: "code",
+      code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+      code_challenge_method: "S256",
+      resource: `${origin}/mcp`,
+      scope: "ledger",
+      state: "browser-state",
+    });
+    await page.goto(`/authorize?${params}`);
+    await expect(
+      page.getByRole("heading", { name: "Connect Calorie Ledger" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("read, add, edit, and delete", { exact: false }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Username", { exact: true })
+      .fill(`tester-${testInfo.project.name}`);
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill("test-password-12345");
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+    await expect(page.locator("body")).toHaveJSProperty(
+      "scrollWidth",
+      await page.locator("body").evaluate((e) => e.clientWidth),
+    );
+    await page.getByRole("button", { name: "Allow access" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Connected", exact: true }),
+    ).toBeVisible();
+    const returned = new URL(page.url());
+    expect(returned.searchParams.get("state")).toBe("browser-state");
+    expect(returned.searchParams.get("iss")).toBe(origin);
+    const exchanged = await page.request.post(`${origin}/token`, {
+      form: {
+        grant_type: "authorization_code",
+        client_id,
+        code: returned.searchParams.get("code")!,
+        code_verifier: verifier,
+        redirect_uri: callback,
+        resource: `${origin}/mcp`,
+      },
+    });
+    expect(exchanged.status()).toBe(200);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page
+      .locator(".token-list .food-row")
+      .filter({ hasText: `OAuth: Browser connector ${testInfo.project.name}` })
+      .getByRole("button", { name: "Revoke" })
+      .click();
+    await expect(
+      page.getByText("Token revoked.", { exact: true }),
+    ).toBeVisible();
+  } finally {
+    receiver.closeAllConnections();
+    await new Promise<void>((resolve) => receiver.close(() => resolve()));
+  }
+});
 test("food → dish → custom meal → statistics → token lifecycle", async ({
   page,
 }, testInfo) => {
   const name = `Oats ${testInfo.project.name}`;
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -120,7 +216,9 @@ test("saved matches can be broadened with the keyboard", async ({
   page,
 }, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -153,7 +251,9 @@ test("switching accounts clears products, search results and nutrition totals", 
   page,
 }, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -188,7 +288,9 @@ test("a committed log with a lost response cannot be duplicated by editing and r
   page,
 }, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -229,9 +331,11 @@ test("a committed log with a lost response cannot be duplicated by editing and r
 });
 test("keyboard dialog, incomplete food, and provider outage", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");

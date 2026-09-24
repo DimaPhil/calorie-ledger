@@ -1,12 +1,12 @@
 ---
 name: calorie-ledger
 description: Log food, manage products and dish recipes, or retrieve calorie and nutrient statistics through the Calorie Ledger MCP service. Use for food diary requests, meal photos intended for logging, label transcription, and questions about what the user ate. Do not use for unrelated recipe advice or medical nutrition recommendations.
-compatibility: An MCP client with Streamable HTTP and bearer header support, connected to the user's Calorie Ledger account.
+compatibility: An MCP client with Streamable HTTP and OAuth or explicit bearer header support, connected to the user's Calorie Ledger account.
 ---
 
 # Calorie Ledger
 
-Use the connected Calorie Ledger MCP tools. The deployment's `/mcp` endpoint accepts `Authorization: Bearer <token>`; users create and revoke tokens in Settings. Keep tokens out of conversation, logs, and committed configuration. Fetch `calorie-ledger://guide` if tool conventions are unclear.
+Use the connected Calorie Ledger MCP tools. For Claude custom connectors, use the deployment's `/mcp` URL, enable sign-in, and leave the optional client ID and secret blank; sign in to Calorie Ledger and approve access. Clients supporting explicit headers can still use `Authorization: Bearer <token>`. Revoke OAuth connections and manual tokens in Settings. Keep tokens out of conversation, logs, and committed configuration. Fetch `calorie-ledger://guide` if tool conventions are unclear.
 
 ## Log a meal
 
