@@ -221,6 +221,33 @@ export const actionSchemas = {
     .object({ effectiveDate: dateSchema, targets: goalTargetsSchema })
     .strict(),
   save_checkin: checkInSchema,
+  get_checkin: z.object({ date: dateSchema.optional() }).strict(),
+  update_checkin: checkInSchema
+    .partial()
+    .required({ date: true })
+    .refine((v) => Object.keys(v).length > 1, {
+      message: "Provide at least one check-in field to update.",
+    }),
+  preview_food: quantitySchema
+    .extend({
+      productId: z.uuid().optional(),
+      dishId: z.uuid().optional(),
+      product: productSchema.optional(),
+      ingredients: z.array(ingredientSchema).min(1).max(100).optional(),
+      date: dateSchema.optional(),
+    })
+    .strict()
+    .refine(
+      (v) =>
+        Number(!!v.productId) + Number(!!v.dishId) + Number(!!v.product) === 1,
+      {
+        message:
+          "Choose exactly one saved productId, dishId, or inline product.",
+      },
+    )
+    .refine((v) => !v.ingredients || !!v.dishId, {
+      message: "Ingredient overrides require a dishId.",
+    }),
   save_enriched_product: z.object({ id: z.uuid() }).strict(),
   list_products: z.object({}).strict(),
   search_products: z

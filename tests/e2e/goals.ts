@@ -36,7 +36,7 @@ export async function checkGoals(page: Page, info: TestInfo) {
   await expect(card("Energy")).toContainText("50%");
   await expect(page.locator(".goal-card")).toHaveCount(4);
   await page.getByRole("button", { name: "Show more", exact: true }).click();
-  await expect(page.locator(".goal-card")).toHaveCount(16);
+  await expect(page.locator(".goal-card")).toHaveCount(14);
   await page.getByRole("button", { name: "Show less", exact: true }).click();
   await expect(page.locator(".goal-card")).toHaveCount(4);
   await page.getByRole("button", { name: "Show more", exact: true }).click();
@@ -44,6 +44,12 @@ export async function checkGoals(page: Page, info: TestInfo) {
   await expect(card("Free sugars")).toContainText("Above limit");
   await expect(card("Fiber")).toContainText("Not tracked");
   await page.locator(".daily-checkin summary").click();
+  await expect(
+    page.getByLabel("Fruit & vegetables total (g)", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Fish portions", { exact: true })).toHaveCount(
+    0,
+  );
   await page.getByLabel("Drinks total (ml)", { exact: true }).fill("1250");
   await page.getByLabel("Weight (kg)", { exact: true }).fill("95");
   await page.getByLabel("I have finished logging this day").check();

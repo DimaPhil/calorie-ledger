@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { defaultGoals, type GoalSettings } from "../src/goals-shared.js";
+import {
+  defaultGoals,
+  metricDefinitions,
+  checkInSchema,
+  type GoalSettings,
+} from "../src/goals-shared.js";
 import { enrichProduct } from "./enrichment.js";
 import { isDeepStrictEqual } from "node:util";
 import { DateTime } from "luxon";
@@ -35,6 +40,26 @@ export class Service {
     public user: User,
     public provider: Provider = externalSearch,
   ) {}
+  today() {
+    return DateTime.now().setZone(this.user.timezone).toISODate()!;
+  }
+  async checkInStatus(date = this.today()) {
+    validateDate(date);
+    const { rows } = await this.database.query(
+      "SELECT data FROM checkins WHERE user_id=$1 AND date=$2",
+      [this.user.id, date],
+    );
+    const checkIn = rows[0] ? checkInSchema.strip().parse(rows[0].data) : null;
+    return {
+      status: checkIn ? "recorded" : "missing",
+      date,
+      timezone: this.user.timezone,
+      checkedIn: !!checkIn,
+      shouldAsk: !checkIn && date === this.today(),
+      loggingComplete: checkIn?.complete ?? false,
+      checkIn,
+    };
+  }
   async list<T>(table: "products" | "dishes"): Promise<T[]> {
     const { rows } = await this.database.query(
       `SELECT id,data,updated_at FROM ${table} WHERE user_id=$1 ORDER BY data->>'name'`,
@@ -166,12 +191,12 @@ export class Service {
     }
     return { deleted: true };
   }
-  async dishItems(dish: DishInput) {
+  async dishItems(dish: DishInput, requireCalories = true) {
     return Promise.all(
       dish.ingredients.map(async (i) => {
         const product = await this.get<Product>("products", i.productId);
         const weight = grams(product, i);
-        if (product.nutrients.calories === undefined)
+        if (requireCalories && product.nutrients.calories === undefined)
           throw new AppError(
             "clarification_required",
             `Add calories per 100g for ${product.name} before logging.`,
@@ -186,7 +211,7 @@ export class Service {
       }),
     );
   }
-  async calculate(input: LogInput) {
+  async calculate(input: LogInput, requireCalories = true) {
     if (input.ingredients && !input.dishId)
       throw new AppError(
         "invalid_input",
@@ -198,7 +223,7 @@ export class Service {
     if (input.productId) {
       const p = await this.get<Product>("products", input.productId);
       sources = [{ kind: "products", id: p.id }];
-      if (p.nutrients.calories === undefined)
+      if (requireCalories && p.nutrients.calories === undefined)
         throw new AppError(
           "clarification_required",
           "Add calories per 100g before logging this product.",
@@ -237,7 +262,7 @@ export class Service {
           422,
           { missing: ["servings or cooked weight"] },
         );
-      items = (await this.dishItems(recipe)).map((i) => ({
+      items = (await this.dishItems(recipe, requireCalories)).map((i) => ({
         ...i,
         grams: i.grams * factor,
         nutrients: scale(i.nutrients, factor),
@@ -393,7 +418,15 @@ export class Service {
           "SELECT data FROM goals WHERE user_id=$1 ORDER BY effective_date",
           [this.user.id],
         );
-        const settings: GoalSettings[] = history.rows.map((r) => r.data);
+        const settings: GoalSettings[] = history.rows.map((r) => ({
+          ...r.data,
+          targets: Object.fromEntries(
+            metricDefinitions.map((m) => [
+              m.key,
+              r.data.targets[m.key] ?? m.target,
+            ]),
+          ),
+        }));
         const fallback = { effectiveDate: "0001-01-01", targets: defaultGoals };
         const checkins = await this.database.query(
           "SELECT data FROM checkins WHERE user_id=$1 AND date BETWEEN $2 AND $3 ORDER BY date",
@@ -404,7 +437,9 @@ export class Service {
             settings.filter((s) => s.effectiveDate <= input.end).at(-1) ||
             fallback,
           history: [fallback, ...settings],
-          checkins: checkins.rows.map((r) => r.data),
+          checkins: checkins.rows.map((r) =>
+            checkInSchema.strip().parse(r.data),
+          ),
         };
       }
       case "save_goals":
@@ -421,6 +456,93 @@ export class Service {
           [this.user.id, input.date, JSON.stringify(input)],
         );
         return input;
+      case "get_checkin":
+        return this.checkInStatus(input.date);
+      case "update_checkin": {
+        const previous = await this.checkInStatus(input.date);
+        const merged = { complete: false, ...previous.checkIn, ...input };
+        await this.database.query(
+          "INSERT INTO checkins(user_id,date,data) VALUES($1,$2,$3) ON CONFLICT(user_id,date) DO UPDATE SET data=$3",
+          [this.user.id, input.date, JSON.stringify(merged)],
+        );
+        return this.checkInStatus(input.date);
+      }
+      case "preview_food": {
+        const date = input.date || this.today();
+        validateDate(date);
+        let meal;
+        if (input.product) {
+          const weight = grams(input.product, input);
+          const nutrients = scale(input.product.nutrients, weight / 100);
+          meal = {
+            name: input.product.name,
+            nutrients,
+            items: [{ name: input.product.name, grams: weight, nutrients }],
+          };
+        } else {
+          const { sources: _, ...calculated } = await this.calculate(
+            {
+              ...input,
+              date,
+              meal: "snack",
+              notes: "",
+              idempotencyKey: "preview-only",
+            },
+            false,
+          );
+          meal = calculated;
+        }
+        const current = await this.stats(date, date);
+        const goals = await this.run("get_goals", { start: date, end: date });
+        const missingNutrients = nutrientKeys.filter((k) =>
+          meal.items.some(
+            (i: Entry["items"][number]) => i.nutrients[k] === undefined,
+          ),
+        );
+        return {
+          logged: false,
+          date,
+          ...meal,
+          missingNutrients,
+          currentMissingNutrients: current.missingNutrients,
+          comparisonBasis:
+            "Already logged food plus this hypothetical portion; unlogged food is not included.",
+          goalImpact: metricDefinitions
+            .filter((m) => m.source === "food")
+            .map((m) => {
+              const key = m.key as keyof typeof meal.nutrients;
+              const target = goals.settings.targets[key];
+              const portion = meal.nutrients[key] ?? null;
+              const currentLogged =
+                current.totals[key] ??
+                (current.entries.length === 0 ? 0 : null);
+              const complete =
+                !missingNutrients.includes(key) &&
+                !current.missingNutrients.includes(key);
+              const projected =
+                complete && portion !== null && currentLogged !== null
+                  ? currentLogged + portion
+                  : null;
+              return {
+                key,
+                unit: m.unit,
+                kind: m.kind,
+                target,
+                portion,
+                portionPercent:
+                  portion === null || missingNutrients.includes(key)
+                    ? null
+                    : (portion / target) * 100,
+                currentLogged,
+                projected,
+                projectedPercent:
+                  projected === null ? null : (projected / target) * 100,
+                remaining: projected === null ? null : target - projected,
+                complete,
+              };
+            }),
+        };
+      }
       case "list_products":
         return this.list("products");
       case "search_products":

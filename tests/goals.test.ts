@@ -23,6 +23,162 @@ afterAll(async () => {
   await db.close();
 });
 
+it("checks in by local day, preserves omitted fields and isolates owners", async () => {
+  const clock = vi
+    .spyOn(Date, "now")
+    .mockReturnValue(Date.parse("2027-01-02T01:00:00Z"));
+  const local = new Service(db, { ...a.user, timezone: "America/Los_Angeles" });
+  try {
+    expect(await local.run("get_checkin", {})).toMatchObject({
+      date: "2027-01-01",
+      checkedIn: false,
+      shouldAsk: true,
+      loggingComplete: false,
+    });
+    await local.run("update_checkin", {
+      date: "2027-01-01",
+      sleep: 7,
+      weight: 95,
+    });
+    await Promise.all([
+      local.run("update_checkin", { date: "2027-01-01", beverages: 1250 }),
+      local.run("update_checkin", { date: "2027-01-01", energy: 4 }),
+    ]);
+    expect(await local.run("get_checkin", {})).toMatchObject({
+      checkedIn: true,
+      shouldAsk: false,
+      loggingComplete: false,
+      checkIn: { sleep: 7, weight: 95, beverages: 1250, energy: 4 },
+    });
+    expect((await b.run("get_checkin", { date: "2027-01-01" })).checkedIn).toBe(
+      false,
+    );
+    expect(
+      (await local.run("get_checkin", { date: "2026-12-31" })).shouldAsk,
+    ).toBe(false);
+    clock.mockReturnValue(Date.parse("2027-01-02T09:00:00Z"));
+    expect(await local.run("get_checkin", {})).toMatchObject({
+      date: "2027-01-02",
+      checkedIn: false,
+      shouldAsk: true,
+    });
+    await expect(
+      local.run("update_checkin", { date: "2027-01-02" }),
+    ).rejects.toThrow();
+    await expect(
+      local.run("update_checkin", { date: "2027-01-02", fish: 1 }),
+    ).rejects.toThrow();
+    await db.query(
+      'UPDATE checkins SET data=data || \'{"fish":1,"fruitVeg":400}\'::jsonb WHERE user_id=$1 AND date=$2',
+      [a.user.id, "2027-01-01"],
+    );
+    const historical = await local.run("get_goals", {
+      start: "2027-01-01",
+      end: "2027-01-01",
+    });
+    expect(historical.checkins[0]).not.toHaveProperty("fish");
+    expect(historical.settings.targets).not.toHaveProperty("fruitVeg");
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+it("previews saved and unsaved foods and dishes without writing, with honest goal impact", async () => {
+  const date = "2028-01-01";
+  const food = await a.run("save_product", {
+    product: {
+      name: "Preview oats",
+      nutrients: { calories: 400, protein: 10 },
+      portions: [{ label: "cup", unit: "cup", grams: 80 }],
+    },
+  });
+  const dish = await a.run("save_dish", {
+    dish: {
+      name: "Preview bowl",
+      ingredients: [{ productId: food.id, amount: 100, unit: "g" }],
+      servings: 2,
+    },
+  });
+  await a.run("log_food", {
+    date,
+    productId: food.id,
+    amount: 50,
+    unit: "g",
+    idempotencyKey: randomUUID(),
+  });
+  const before = await db.query(
+    "SELECT (SELECT count(*) FROM entries) entries,(SELECT count(*) FROM products) products,(SELECT count(*) FROM dishes) dishes,(SELECT count(*) FROM choices) choices,(SELECT count(*) FROM checkins) checkins",
+  );
+  const result = await a.run("preview_food", {
+    productId: food.id,
+    amount: 0.5,
+    unit: "cup",
+    date,
+  });
+  expect(result).toMatchObject({
+    logged: false,
+    nutrients: { calories: 160, protein: 4 },
+  });
+  expect(
+    result.goalImpact.find((v: any) => v.key === "calories"),
+  ).toMatchObject({
+    currentLogged: 200,
+    portion: 160,
+    projected: 360,
+    remaining: 1740,
+    complete: true,
+  });
+  expect(result.goalImpact.find((v: any) => v.key === "fiber")).toMatchObject({
+    projected: null,
+    complete: false,
+  });
+  expect(
+    (
+      await a.run("preview_food", {
+        dishId: dish.id,
+        amount: 1,
+        unit: "serving",
+        date,
+      })
+    ).nutrients.calories,
+  ).toBe(200);
+  expect(
+    (
+      await a.run("preview_food", {
+        product: { name: "Unsaved", nutrients: { fat: 5 } },
+        amount: 200,
+        unit: "g",
+        date,
+      })
+    ).nutrients,
+  ).toEqual({ fat: 10 });
+  expect(
+    (
+      await a.run("preview_food", {
+        product: { name: "Possible food", nutrients: { calories: 100 } },
+        amount: 100,
+        unit: "g",
+        date: "2028-01-02",
+      })
+    ).goalImpact[0].currentLogged,
+  ).toBe(0);
+  await expect(
+    b.run("preview_food", { productId: food.id, amount: 100, unit: "g", date }),
+  ).rejects.toThrow();
+  await expect(
+    a.run("preview_food", {
+      productId: food.id,
+      amount: 1,
+      unit: "piece",
+      date,
+    }),
+  ).rejects.toThrow();
+  const after = await db.query(
+    "SELECT (SELECT count(*) FROM entries) entries,(SELECT count(*) FROM products) products,(SELECT count(*) FROM dishes) dishes,(SELECT count(*) FROM choices) choices,(SELECT count(*) FROM checkins) checkins",
+  );
+  expect(after.rows).toEqual(before.rows);
+});
+
 it("enriches only the owner's food, preserving stored journal snapshots", async () => {
   const food: Product = await a.run("save_product", {
     product: {

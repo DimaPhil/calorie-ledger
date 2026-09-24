@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, it, expect } from "vitest";
+import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 import request from "supertest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -148,6 +148,53 @@ describe("real MCP client pipeline", () => {
       },
     });
     const product = JSON.parse((created.content as { text: string }[])[0].text);
+    const originalQuery = database.query.bind(database);
+    const failedContext = vi
+      .spyOn(database, "query")
+      .mockImplementation(async (sql, values) => {
+        if (sql === "SELECT data FROM checkins WHERE user_id=$1 AND date=$2")
+          throw new Error("Simulated context outage");
+        return originalQuery(sql, values);
+      });
+    try {
+      const committed = await client.callTool({
+        name: "save_product",
+        arguments: {
+          product: { name: "Context outage", nutrients: { calories: 10 } },
+        },
+      });
+      expect(committed.isError).not.toBe(true);
+      expect((committed.structuredContent as any).dailyCheckIn).toEqual({
+        status: "unavailable",
+        shouldAsk: false,
+      });
+      expect((committed.structuredContent as any).result.id).toBeTruthy();
+    } finally {
+      failedContext.mockRestore();
+    }
+    const context = (created.structuredContent as any).dailyCheckIn;
+    expect(context).toMatchObject({ checkedIn: false, shouldAsk: true });
+    const checked = await client.callTool({
+      name: "update_checkin",
+      arguments: { date: context.date, sleep: 7 },
+    });
+    expect((checked.structuredContent as any).dailyCheckIn).toMatchObject({
+      checkedIn: true,
+      shouldAsk: false,
+      loggingComplete: false,
+    });
+    const preview = await client.callTool({
+      name: "preview_food",
+      arguments: { productId: product.id, amount: 50, unit: "g" },
+    });
+    expect((preview.structuredContent as any).result).toMatchObject({
+      logged: false,
+      nutrients: { calories: 200 },
+    });
+    expect(
+      JSON.parse((preview.content as { text: string }[])[1].text).dailyCheckIn
+        .checkedIn,
+    ).toBe(true);
     const missing = await client.callTool({
       name: "resolve_food",
       arguments: { query: "MCP oats" },
