@@ -297,10 +297,26 @@ describe("agent food resolution", () => {
       expect((await a.run("search_products", { query })).status).toBe(
         "matched",
       );
+      expect(provider).toHaveBeenCalledWith(database, query);
+      provider.mockClear();
+      const resolved = await a.run("resolve_food", {
+        query,
+        amount: 10,
+        unit: "g",
+      });
+      expect(resolved).toMatchObject({
+        status: "ready",
+        preferredProductId: p.id,
+        requiresProductConfirmation: false,
+      });
       expect(provider).not.toHaveBeenCalled();
       const result = await a.run("search_products", { query, broaden: true });
       expect(provider).toHaveBeenCalledWith(database, query);
       expect(result.status).toBe("choose");
+      expect(result).toMatchObject({
+        preferredProductId: p.id,
+        requiresProductConfirmation: true,
+      });
       expect(result.candidates[0].id).toBe(p.id);
       expect(
         result.candidates.some((x: Product) => x.name === "External oats"),
@@ -324,6 +340,69 @@ describe("agent food resolution", () => {
     });
     expect(result.status).toBe("ready");
     expect(result.nutrients.calories).toBe(320);
+  });
+  it("returns alternatives while making confirmed identity explicit", async () => {
+    const alternative = await a.run("save_product", {
+      product: pInput("Sweet small rolled oats"),
+    });
+    const result = await a.run("search_products", { query: "Rolled oats" });
+    expect(result).toMatchObject({
+      status: "matched",
+      preferredProductId: p.id,
+      matchType: "exact_saved",
+      requiresProductConfirmation: false,
+    });
+    expect(result.candidates.map((x: Product) => x.id)).toContain(
+      alternative.id,
+    );
+    expect(
+      result.candidates.some((x: Product) => x.name === "External oats"),
+    ).toBe(true);
+    await a.run("remember_choice", { query: "my oats", productId: p.id });
+    expect(await a.run("resolve_food", { query: "my oats" })).toMatchObject({
+      status: "clarification_required",
+      preferredProductId: p.id,
+      matchType: "confirmed_alias",
+      requiresProductConfirmation: false,
+      missing: ["amount", "unit"],
+    });
+    expect(
+      await a.run("search_products", { query: "sweet small my oats" }),
+    ).toMatchObject({
+      status: "choose",
+      preferredProductId: null,
+      matchType: "none",
+      requiresProductConfirmation: true,
+    });
+    expect(
+      await b.run("search_products", { query: "my oats", external: false }),
+    ).toMatchObject({
+      preferredProductId: null,
+      matchType: "none",
+      requiresProductConfirmation: true,
+    });
+  });
+  it("puts a confirmed alias ahead of conflicting exact saved names", async () => {
+    await a.run("save_product", { product: pInput("Rolled oats") });
+    await a.run("remember_choice", { query: "Rolled oats", productId: p.id });
+    const result = await a.run("search_products", { query: "Rolled oats" });
+    expect(result).toMatchObject({
+      preferredProductId: p.id,
+      matchType: "confirmed_alias",
+      requiresProductConfirmation: false,
+    });
+    expect(result.candidates[0].id).toBe(p.id);
+    expect(
+      result.candidates.filter((x: Product) => x.id === p.id),
+    ).toHaveLength(1);
+    await expect(
+      a.run("resolve_food", {
+        query: "Rolled oats",
+        amount: 1,
+        unit: "piece",
+        portionLabel: "small",
+      }),
+    ).rejects.toMatchObject({ code: "clarification_required" });
   });
   it("returns at most five choices and remembers only confirmed aliases", async () => {
     for (let i = 0; i < 6; i++)

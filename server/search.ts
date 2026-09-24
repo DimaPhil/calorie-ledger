@@ -221,6 +221,9 @@ export async function search(
       status: "not_found",
       query,
       candidates: [],
+      preferredProductId: null,
+      matchType: "none",
+      requiresProductConfirmation: true,
       reason: "Provide a food name, brand, or barcode.",
       warnings: [],
     };
@@ -244,16 +247,8 @@ export async function search(
       normalize(`${p.brand} ${p.name}`) === normalized ||
       p.barcode === query,
   );
-  if (!broaden && (preferred || exact.length === 1))
-    return {
-      status: "matched",
-      query,
-      candidates: [preferred || exact[0]],
-      reason: preferred
-        ? "Your previously confirmed choice."
-        : "An exact match in your saved foods.",
-      warnings: [],
-    };
+  const selected = preferred || (exact.length === 1 ? exact[0] : undefined);
+  const requiresProductConfirmation = !selected || broaden;
   const tokens = normalized.split(" ");
   const local = saved
     .map((p) => ({
@@ -278,18 +273,31 @@ export async function search(
       updatedAt: new Date().toISOString(),
     }));
   const candidates = [
-    ...(preferred && !exact.includes(preferred) ? [preferred] : []),
-    ...exact,
-    ...local.filter((p) => !exact.includes(p) && p !== preferred),
+    ...(selected ? [selected] : []),
+    ...exact.filter((p) => p !== selected),
+    ...local.filter((p) => !exact.includes(p) && p !== selected),
     ...remote,
   ].slice(0, 5);
   return {
-    status: candidates.length ? "choose" : "not_found",
+    status: !requiresProductConfirmation
+      ? "matched"
+      : candidates.length
+        ? "choose"
+        : "not_found",
     query,
     candidates,
-    reason: candidates.length
-      ? "Choose a product and check the brand and nutrition label. Save external candidates before logging."
-      : "No matching food found. Try a brand, barcode, or add a custom product.",
+    preferredProductId: selected?.id || null,
+    matchType: preferred
+      ? "confirmed_alias"
+      : selected
+        ? "exact_saved"
+        : "none",
+    requiresProductConfirmation,
+    reason: !requiresProductConfirmation
+      ? "Use preferredProductId without asking which product again. Alternatives are included; amount and portion still need validation."
+      : candidates.length
+        ? "Choose a product and check the brand and nutrition label. Save external candidates before logging."
+        : "No matching food found. Try a brand, barcode, or add a custom product.",
     warnings: found.warnings,
   };
 }

@@ -713,6 +713,9 @@ function SessionApp({
                   <div className="food-row" key={p.id}>
                     <div>
                       <strong>{p.name}</strong>
+                      {p.id === searchResult.preferredProductId && (
+                        <small>Preferred saved food</small>
+                      )}
                       <small>
                         {p.brand || "Unbranded"} · {num(p.nutrients.calories)}{" "}
                         kcal / 100g · {p.source}
