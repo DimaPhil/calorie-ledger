@@ -7,11 +7,17 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/mcp", "destination": "/api" },
+    { "source": "/.well-known/(.*)", "destination": "/api" },
+    { "source": "/oauth/(.*)", "destination": "/api" },
+    { "source": "/authorize", "destination": "/api" },
+    { "source": "/token", "destination": "/api" },
+    { "source": "/register", "destination": "/api" },
+    { "source": "/revoke", "destination": "/api" },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/((?!oauth/).*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "same-origin" },

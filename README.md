@@ -3,7 +3,7 @@
 A private food journal with a responsive web dashboard and authenticated MCP tools for agents such as Hermes. TypeScript, React/Vite, Express, PostgreSQL (Neon), and Vercel. Built for a handful of users, with account isolation and no public signup.
 
 - **App:** https://calorie-ledger-six.vercel.app
-- **MCP:** https://calorie-ledger-six.vercel.app/mcp (Streamable HTTP, bearer token required)
+- **MCP:** https://calorie-ledger-six.vercel.app/mcp (Streamable HTTP, OAuth or manually created bearer token)
 - **Agent skill:** [.agents/skills/calorie-ledger/SKILL.md](.agents/skills/calorie-ledger/SKILL.md), also published at `/agent-skill.md` and summarized in the MCP resource `calorie-ledger://guide`.
 
 ## Everyday use
@@ -13,9 +13,13 @@ A private food journal with a responsive web dashboard and authenticated MCP too
 3. In **Dishes**, combine saved products with amounts, units, and recipe yield. Optionally record cooked weight to log the finished dish by weight. Preview nutrition before saving.
 4. **Log food** records a product or recipe portion. Recipe ingredients can change for one meal without editing the template. Historic entries retain their original nutrition after product/recipe edits.
 5. **Journal** shows today, week to date (Monday start), month to date, or an inclusive custom range. Calories, macros, sugar, fiber, other nutrients, daily trends, and corrections are available. Missing-label warnings distinguish incomplete totals from complete intake.
-6. **Settings** controls timezone, metric/US defaults, password, and revocable agent tokens. Each token belongs to exactly one user and expires after one year.
+6. **Settings** controls timezone, metric/US defaults, password, and revocable agent tokens. Each token belongs to exactly one user. Manual tokens expire after one year; OAuth connections expire after 90 days and can be reconnected.
 
 ## MCP connection
+
+For Claude's custom connector, enter **Calorie Ledger** and `https://calorie-ledger-six.vercel.app/mcp`, enable **Requires sign-in**, and leave **Client ID** and **Client secret** blank. Sign in with your existing Calorie Ledger account and approve access. No public signup is enabled. Revoke the connection under **Settings → Agent tokens** (the name starts with `OAuth:`).
+
+The server implements the published [2026-07-28 MCP protocol](https://modelcontextprotocol.io/specification/2026-07-28) through the official TypeScript SDK v2, with its stateless compatibility path for 2025 clients. OAuth uses protected-resource and authorization-server discovery, public-client dynamic registration, S256 PKCE, explicit consent, resource-bound access tokens, issuer identification, and rotating refresh tokens with replay revocation. Access tokens last one hour, refresh tokens 30 days, and the grant at most 90 days. OAuth credentials work only at `/mcp`. Tokens and codes are stored hashed; serverless requests share durable PostgreSQL state. The SDK v1 auth router supplies standard OAuth endpoint validation; v2 supplies protocol handling. Client ID Metadata Documents are not advertised: clients use the published registration endpoint instead, avoiding arbitrary server-side metadata URL fetching.
 
 Create a token in Settings; copy it once and store it in the agent's secret store. Configure a remote Streamable HTTP server with this endpoint and header (adapt the wrapper to the client's configuration format):
 
@@ -26,7 +30,7 @@ Create a token in Settings; copy it once and store it in the agent's secret stor
 }
 ```
 
-Install the published skill as `calorie-ledger/SKILL.md` in the calling agent's supported skill directory. The canonical repository copy is under `.agents/skills/`; the public download is generated during builds. The service implements standard authenticated MCP; it does not depend on a particular agent runtime or provide OAuth discovery. Use a client capable of explicit bearer headers.
+Install the published skill as `calorie-ledger/SKILL.md` in the calling agent's supported skill directory. The canonical repository copy is under `.agents/skills/`; the public download is generated during builds. Use OAuth for Claude's connector or explicit bearer headers for clients that support them.
 
 The agent interprets free-form messages and images, then sends structured tool arguments. `resolve_food` returns `ready`, `choose`, `not_found`, or `clarification_required`; it never logs automatically. `search_products` returns at most five candidates and prioritizes confirmed saved choices. External candidate IDs are previews: save the chosen product first, then remember its confirmed alias. Missing fields return structured issues. Every log requires a stable idempotency key; retry the original key after a timeout. Deleted entries retain tombstones so old retries cannot resurrect them.
 

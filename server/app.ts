@@ -2,8 +2,10 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
+import { toNodeHandler } from "@modelcontextprotocol/node";
+import { InvalidGrantError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
+import { oauthRouter, issuer } from "./oauth.js";
 import { db, type Database } from "./db.js";
 import {
   authenticate,
@@ -12,6 +14,7 @@ import {
   login,
   passwordHash,
   passwordMatches,
+  publicUser,
 } from "./auth.js";
 import { actionSchemas, type Action } from "../src/shared.js";
 import { Service } from "./service.js";
@@ -59,13 +62,24 @@ export function createApp(
   app.set("trust proxy", 1);
   app.use(express.json({ limit: "128kb" }));
   app.use(cookieParser());
+  const oauth = oauthRouter(database);
+  app.use((req, res, next) => {
+    if (
+      /^\/(authorize|token|register|revoke|oauth\/consent|\.well-known\/oauth-(authorization-server|protected-resource(?:\/mcp)?))$/.test(
+        req.path,
+      )
+    )
+      return oauth.router(req, res, next);
+    next();
+  });
   app.use((req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     // Bearer calls don't rely on ambient browser credentials. Cookies require same-origin writes.
     if (
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-      !req.headers.authorization
+      !req.headers.authorization &&
+      req.path !== "/mcp"
     ) {
       const origin = req.headers.origin;
       const expected =
@@ -193,81 +207,100 @@ export function createApp(
     res.json(await new Service(database, user, provider).run(action, req.body));
   });
   app.all("/mcp", async (req, res) => {
-    const user = await authenticate(database, req, true);
+    let user;
+    try {
+      user = await authenticate(database, req, true);
+    } catch (e) {
+      if (!(e instanceof AppError) || e.status !== 401) throw e;
+      const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+      if (!token) throw e;
+      let info;
+      try {
+        info = await oauth.provider.verifyAccessToken(token);
+      } catch (tokenError) {
+        if (tokenError instanceof InvalidGrantError) throw e;
+        throw tokenError;
+      }
+      const { rows } = await database.query("SELECT * FROM users WHERE id=$1", [
+        info.extra!.userId,
+      ]);
+      if (!rows[0]) throw e;
+      user = publicUser(rows[0]);
+    }
     await limit(database, `mcp:${user.id}`, 180);
     const service = new Service(database, user, provider);
-    const server = new McpServer(
-      { name: "calorie-ledger", version: "1.0.0" },
-      { instructions },
-    );
-    for (const action of Object.keys(actionSchemas) as Action[]) {
-      server.registerTool(
-        action,
-        {
-          description: descriptions[action],
-          inputSchema: actionSchemas[action],
-          annotations: {
-            readOnlyHint: /^(list_|search_|resolve_|get_|preview_)/.test(
-              action,
-            ),
-            destructiveHint: /^(delete_|update_|save_)/.test(action),
-            idempotentHint: action === "log_food",
-            openWorldHint:
-              action === "search_products" || action === "resolve_food",
-          },
-        },
-        async (args: unknown) => {
-          try {
-            const data = await service.run(action, args);
-            return {
-              content: [{ type: "text" as const, text: JSON.stringify(data) }],
-              structuredContent: { result: data },
-            };
-          } catch (error) {
-            const e =
-              error instanceof AppError
-                ? error
-                : new AppError(
-                    "internal_error",
-                    "Could not finish this request. Retry with the same idempotency key if logging.",
-                    500,
-                  );
-            return {
-              isError: true,
-              content: [
-                {
-                  type: "text" as const,
-                  text: JSON.stringify({
-                    status: e.code,
-                    message: e.message,
-                    details: e.details,
-                  }),
-                },
-              ],
-            };
-          }
-        },
+    const handler = createMcpHandler(() => {
+      const server = new McpServer(
+        { name: "calorie-ledger", version: "1.0.0" },
+        { instructions },
       );
+      for (const action of Object.keys(actionSchemas) as Action[]) {
+        server.registerTool(
+          action,
+          {
+            description: descriptions[action],
+            inputSchema: actionSchemas[action],
+            annotations: {
+              readOnlyHint: /^(list_|search_|resolve_|get_|preview_)/.test(
+                action,
+              ),
+              destructiveHint: /^(delete_|update_|save_)/.test(action),
+              idempotentHint: action === "log_food",
+              openWorldHint:
+                action === "search_products" || action === "resolve_food",
+            },
+          },
+          async (args: unknown) => {
+            try {
+              const data = await service.run(action, args);
+              return {
+                content: [
+                  { type: "text" as const, text: JSON.stringify(data) },
+                ],
+                structuredContent: { result: data },
+              };
+            } catch (error) {
+              const e =
+                error instanceof AppError
+                  ? error
+                  : new AppError(
+                      "internal_error",
+                      "Could not finish this request. Retry with the same idempotency key if logging.",
+                      500,
+                    );
+              return {
+                isError: true,
+                content: [
+                  {
+                    type: "text" as const,
+                    text: JSON.stringify({
+                      status: e.code,
+                      message: e.message,
+                      details: e.details,
+                    }),
+                  },
+                ],
+              };
+            }
+          },
+        );
+      }
+      server.registerResource(
+        "agent-guide",
+        "calorie-ledger://guide",
+        {
+          mimeType: "text/plain",
+          description: "Food tracking and clarification workflow",
+        },
+        async (uri) => ({ contents: [{ uri: uri.href, text: instructions }] }),
+      );
+      return server;
+    });
+    try {
+      await toNodeHandler(handler)(req, res, req.body);
+    } finally {
+      await handler.close();
     }
-    server.registerResource(
-      "agent-guide",
-      "calorie-ledger://guide",
-      {
-        mimeType: "text/plain",
-        description: "Food tracking and clarification workflow",
-      },
-      async (uri) => ({ contents: [{ uri: uri.href, text: instructions }] }),
-    );
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    });
-    res.on("close", () => {
-      void transport.close();
-      void server.close();
-    });
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
   });
   app.use("/api", (_req, _res, next) =>
     next(new AppError("not_found", "Endpoint not found.", 404)),
@@ -311,7 +344,12 @@ export function createApp(
               500,
             );
       if (e.status === 401)
-        res.setHeader("WWW-Authenticate", 'Bearer realm="calorie-ledger"');
+        res.setHeader(
+          "WWW-Authenticate",
+          _req.path === "/mcp"
+            ? `Bearer resource_metadata="${issuer()}/.well-known/oauth-protected-resource/mcp", scope="ledger"`
+            : 'Bearer realm="calorie-ledger"',
+        );
       if (e.status === 429) res.setHeader("Retry-After", "60");
       if (e.status === 500)
         console.error("Request failed:", error?.name || "Error");
