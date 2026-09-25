@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { action, type Action, type Stats, type Product } from "./shared";
+import {
+  action,
+  type Action,
+  type Stats,
+  type Product,
+  type Nutrients,
+} from "./shared";
+import { Modal } from "./Modal.js";
 import {
   metricDefinitions,
   defaultGoals,
@@ -40,6 +47,13 @@ export function GoalsDashboard({
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const [detail, setDetail] = useState<{
+    metric: (typeof metricDefinitions)[number];
+    total: number;
+    target: number;
+    known: number;
+    partial: boolean;
+  } | null>(null);
   const single = stats.start === stats.end;
   useEffect(() => {
     let active = true;
@@ -159,12 +173,12 @@ export function GoalsDashboard({
             partial ||= known < expected;
             const percent =
               known && target > 0 ? Math.round((total / target) * 100) : null;
-            const over = metric.kind === "limit" && total > target;
+            const over = metric.kind !== "minimum" && total > target;
             const status =
               percent === null
                 ? "Not tracked"
                 : over
-                  ? `Above limit${partial ? " · known values only" : ""}`
+                  ? `${metric.kind === "limit" ? "Above limit" : `${number(total - target)} ${metric.unit} above target`}${partial ? " · known values only" : ""}`
                   : partial
                     ? "Known values only"
                     : metric.kind === "limit"
@@ -180,7 +194,17 @@ export function GoalsDashboard({
                 className={`goal-card ${over ? "goal-over" : ""} ${percent === null ? "goal-unknown" : ""}`}
               >
                 <div className="goal-card-title">
-                  <h3>{metric.label}</h3>
+                  <h3 aria-label={metric.label}>
+                    <button
+                      className="goal-detail-button"
+                      aria-label={`Show ${metric.label.toLowerCase()} contributions`}
+                      onClick={() =>
+                        setDetail({ metric, total, target, known, partial })
+                      }
+                    >
+                      {metric.label}
+                    </button>
+                  </h3>
                   <strong className="goal-percent">
                     {percent === null ? "—" : `${percent}%`}
                   </strong>
@@ -206,6 +230,145 @@ export function GoalsDashboard({
             );
           })}
       </div>
+      {detail && (
+        <Modal
+          title={`${detail.metric.label}: where it comes from`}
+          onClose={() => setDetail(null)}
+        >
+          <p className="goal-detail-total">
+            <strong>
+              {detail.known ? number(detail.total) : "—"} {detail.metric.unit}
+            </strong>{" "}
+            / {number(detail.target)} {detail.metric.unit}{" "}
+            {detail.metric.kind === "limit"
+              ? "limit"
+              : detail.metric.kind === "minimum"
+                ? "minimum"
+                : "target"}
+            {!single ? " per day" : ""}
+          </p>
+          <p>
+            {detail.metric.kind === "limit"
+              ? "This is an upper limit. Amber means the recorded amount exceeds it."
+              : detail.metric.kind === "minimum"
+                ? "This is a minimum goal. Going above it does not trigger an amber warning."
+                : "This is a daily target. Amber means you are above it; it is a planning signal, not a safety limit."}
+            {detail.metric.key === "saturatedFat" || detail.metric.key === "fat"
+              ? " Saturated fat is part of total fat, not an additional amount."
+              : ""}
+          </p>
+          {!single && (
+            <p>
+              {detail.known
+                ? `Sum of recorded contributions ÷ ${detail.known} known days = the displayed daily average.`
+                : "No known days in this interval."}{" "}
+              Only days marked complete are included.
+            </p>
+          )}
+          {detail.partial && (
+            <p className="form-note">
+              Some values are missing. The recorded total is a lower bound;
+              unknown values are not zero.
+            </p>
+          )}
+          {detail.metric.source === "food" ? (
+            <>
+              <p>
+                Largest contributors first. Percentages show each entry’s share
+                of the recorded total. Ingredient values already account for the
+                amount eaten and any journal corrections.
+              </p>
+              <ol className="goal-contributors">
+                {stats.entries
+                  .filter((e) => selectedDays.some((d) => d.date === e.date))
+                  .sort(
+                    (a, b) =>
+                      (b.nutrients[detail.metric.key as keyof Nutrients] ??
+                        -1) -
+                      (a.nutrients[detail.metric.key as keyof Nutrients] ?? -1),
+                  )
+                  .map((entry) => {
+                    const value =
+                      entry.nutrients[detail.metric.key as keyof Nutrients];
+                    const share =
+                      value !== undefined &&
+                      detail.total > 0 &&
+                      detail.known > 0
+                        ? (value / (detail.total * detail.known)) * 100
+                        : null;
+                    return (
+                      <li key={entry.id}>
+                        <div className="contributor-heading">
+                          <strong>{entry.name}</strong>
+                          <strong>
+                            {value === undefined
+                              ? "Unknown"
+                              : `${number(value)} ${detail.metric.unit}`}
+                          </strong>
+                        </div>
+                        <small>
+                          {entry.date} · {entry.meal} · {number(entry.amount)}{" "}
+                          {entry.unit}
+                          {share !== null
+                            ? ` · ${number(share)}% of recorded total`
+                            : ""}
+                        </small>
+                        {share !== null && (
+                          <div className="contributor-bar" aria-hidden="true">
+                            <span
+                              style={{ width: `${Math.min(share, 100)}%` }}
+                            />
+                          </div>
+                        )}
+                        <ul>
+                          {entry.items.map((item, index) => (
+                            <li key={index}>
+                              {item.name}: {number(item.grams)} g eaten →{" "}
+                              <strong>
+                                {item.nutrients[
+                                  detail.metric.key as keyof Nutrients
+                                ] === undefined
+                                  ? "Unknown"
+                                  : `${number(item.nutrients[detail.metric.key as keyof Nutrients]!)} ${detail.metric.unit}`}
+                              </strong>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    );
+                  })}
+              </ol>
+              {!stats.entries.some((e) =>
+                selectedDays.some((d) => d.date === e.date),
+              ) && <p>No food entries contribute in this view.</p>}
+            </>
+          ) : (
+            <>
+              <p>
+                Source: daily check-in totals. These are entered directly; food
+                records are not added again.
+              </p>
+              <ul>
+                {selectedDays.map((day) => {
+                  const value = data.checkins.find(
+                    (c) => c.date === day.date,
+                  )?.[detail.metric.key as "beverages" | "sleep"];
+                  return (
+                    <li key={day.date}>
+                      {day.date}:{" "}
+                      <strong>
+                        {value === undefined
+                          ? "Not recorded"
+                          : `${number(value)} ${detail.metric.unit}`}
+                      </strong>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </Modal>
+      )}
       <button
         className="text-button"
         aria-expanded={expanded}

@@ -11,6 +11,7 @@ import {
 import { DateTime } from "luxon";
 import { GoalsDashboard, GoalAdmin } from "./Goals.js";
 import { Progress } from "./Progress.js";
+import { Modal } from "./Modal.js";
 import {
   action,
   api,
@@ -992,46 +993,6 @@ function SessionApp({
   );
 }
 
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  useEffect(() => {
-    const old = document.activeElement as HTMLElement;
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const dialog = document.querySelector("dialog")!;
-    dialog.showModal();
-    dialog.querySelector<HTMLElement>("input,select,textarea")?.focus();
-    return () => {
-      dialog.close();
-      document.body.style.overflow = oldOverflow;
-      old?.focus();
-    };
-  }, []);
-  return (
-    <dialog
-      onCancel={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
-      aria-labelledby="modal-title"
-    >
-      <div className="modal-heading">
-        <h2 id="modal-title">{title}</h2>
-        <button onClick={onClose} aria-label="Close dialog">
-          ×
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
 function ProductForm({
   product,
   busy,
