@@ -12,11 +12,76 @@
   gap: 12px;
 }
 .goal-card {
+  position: relative;
   min-width: 0;
   border: 1px solid #dce2d5;
   border-radius: 13px;
   padding: 17px;
   background: #fff;
+}
+.goal-detail-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.goal-detail-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+}
+.goal-detail-button:focus-visible {
+  outline: none;
+}
+.goal-detail-button:focus-visible::after {
+  outline: 2px solid #315d43;
+  outline-offset: 3px;
+}
+.goal-card:has(.goal-detail-button:hover) {
+  box-shadow: 0 0 0 1px #82997d;
+}
+.goal-detail-total {
+  font-size: 18px;
+}
+.goal-contributors {
+  list-style: none;
+  padding: 0;
+}
+.goal-contributors > li {
+  padding: 16px 0;
+  border-top: 1px solid #dce2d5;
+  overflow-wrap: anywhere;
+}
+.contributor-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.contributor-heading > strong:last-child {
+  white-space: nowrap;
+}
+.goal-contributors small {
+  color: #52644d;
+}
+.goal-contributors ul {
+  padding-left: 20px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.contributor-bar {
+  height: 5px;
+  background: #edf0e7;
+  margin-top: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.contributor-bar span {
+  display: block;
+  height: 100%;
+  background: #537c50;
 }
 .goal-card-title {
   display: flex;

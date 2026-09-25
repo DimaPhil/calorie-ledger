@@ -417,8 +417,29 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     }),
   });
   await dish.getByRole("button", { name: "Log dish" }).click();
+  if (testInfo.project.name !== "chromium") {
+    const dateBox = await dialog.getByLabel("Date eaten").boundingBox();
+    const mealBox = await dialog
+      .getByLabel("Meal", { exact: true })
+      .boundingBox();
+    expect(dateBox!.y + dateBox!.height).toBeLessThanOrEqual(mealBox!.y);
+  }
   await dialog.getByText("Different recipe this time?").click();
   await dialog.getByRole("button", { name: "Customize this meal" }).click();
+  if (testInfo.project.name !== "chromium") {
+    const ingredient = dialog.locator(".ingredient");
+    const selectBox = await ingredient
+      .getByLabel("Ingredient 1", { exact: true })
+      .boundingBox();
+    const removeBox = await ingredient
+      .getByRole("button", { name: /Remove ingredient/ })
+      .boundingBox();
+    expect(
+      Math.abs(
+        selectBox!.y + selectBox!.height - removeBox!.y - removeBox!.height,
+      ),
+    ).toBeLessThanOrEqual(1);
+  }
   await dialog
     .locator(".ingredient")
     .getByLabel("Amount", { exact: true })
