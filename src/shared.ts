@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { checkInSchema, goalTargetsSchema } from "./goals-shared.js";
 
-export const nutrientKeys = [
+export const legacyNutrientKeys = [
   "calories",
   "protein",
   "carbs",
@@ -17,6 +18,11 @@ export const nutrientKeys = [
   "iron",
   "vitaminC",
   "vitaminD",
+] as const;
+export const nutrientKeys = [
+  ...legacyNutrientKeys,
+  "magnesium",
+  "freeSugar",
 ] as const;
 export const nutrientLabels: Record<(typeof nutrientKeys)[number], string> = {
   calories: "Energy (kcal)",
@@ -35,6 +41,8 @@ export const nutrientLabels: Record<(typeof nutrientKeys)[number], string> = {
   iron: "Iron (mg)",
   vitaminC: "Vitamin C (mg)",
   vitaminD: "Vitamin D (µg)",
+  magnesium: "Magnesium (mg)",
+  freeSugar: "Free sugars (g; not total sugars)",
 };
 export const units = [
   "g",
@@ -121,6 +129,9 @@ export type Dish = DishInput & { id: string; updatedAt: string };
 export type LogInput = z.infer<typeof logSchema>;
 export type Entry = {
   id: string;
+  autoUpdate?: boolean;
+  revision?: number;
+  trackedNutrients?: (typeof nutrientKeys)[number][];
   name: string;
   date: string;
   meal: string;
@@ -141,6 +152,9 @@ export type SearchResult = {
   status: "matched" | "choose" | "not_found";
   query: string;
   candidates: Product[];
+  preferredProductId: string | null;
+  matchType: "confirmed_alias" | "exact_saved" | "none";
+  requiresProductConfirmation: boolean;
   reason: string;
   warnings: string[];
 };
@@ -154,12 +168,93 @@ export type Stats = {
 };
 
 // Web POST /api/actions/:action and MCP tools share these action names/arguments.
+export const entryUpdateSchema = z
+  .object({
+    id: z.uuid(),
+    date: dateSchema,
+    meal: z.enum(["breakfast", "lunch", "dinner", "snack"]),
+    notes: z.string().max(2000),
+    expectedRevision: z.number().int().min(0).optional(),
+    name: z.string().trim().min(1).max(200).optional(),
+    amount: z.number().positive().max(100000).optional(),
+    unit: unitSchema.optional(),
+    items: z
+      .array(
+        z
+          .object({
+            name: z.string().trim().min(1).max(200),
+            grams: z.number().positive().max(100000),
+            nutrients: nutrientsSchema.extend({
+              calories: z.number().finite().min(0).max(100000),
+            }),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100)
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (v) =>
+      (v.name === undefined &&
+        v.amount === undefined &&
+        v.unit === undefined &&
+        v.items === undefined) ||
+      v.expectedRevision !== undefined,
+    {
+      message:
+        "Snapshot corrections require expectedRevision from the current entry.",
+    },
+  )
+  .refine(
+    (v) =>
+      (v.amount === undefined && v.unit === undefined) || v.items !== undefined,
+    {
+      message: "Quantity corrections require the complete component snapshot.",
+    },
+  );
+export type EntryUpdate = z.infer<typeof entryUpdateSchema>;
 export const actionSchemas = {
+  get_goals: z.object({ start: dateSchema, end: dateSchema }).strict(),
+  save_goals: z
+    .object({ effectiveDate: dateSchema, targets: goalTargetsSchema })
+    .strict(),
+  save_checkin: checkInSchema,
+  get_checkin: z.object({ date: dateSchema.optional() }).strict(),
+  update_checkin: checkInSchema
+    .partial()
+    .required({ date: true })
+    .refine((v) => Object.keys(v).length > 1, {
+      message: "Provide at least one check-in field to update.",
+    }),
+  preview_food: quantitySchema
+    .extend({
+      productId: z.uuid().optional(),
+      dishId: z.uuid().optional(),
+      product: productSchema.optional(),
+      ingredients: z.array(ingredientSchema).min(1).max(100).optional(),
+      date: dateSchema.optional(),
+    })
+    .strict()
+    .refine(
+      (v) =>
+        Number(!!v.productId) + Number(!!v.dishId) + Number(!!v.product) === 1,
+      {
+        message:
+          "Choose exactly one saved productId, dishId, or inline product.",
+      },
+    )
+    .refine((v) => !v.ingredients || !!v.dishId, {
+      message: "Ingredient overrides require a dishId.",
+    }),
+  save_enriched_product: z.object({ id: z.uuid() }).strict(),
   list_products: z.object({}).strict(),
   search_products: z
     .object({
       query: z.string().trim().min(1).max(200),
       external: z.boolean().default(true),
+      broaden: z.boolean().default(false),
     })
     .strict(),
   save_product: z
@@ -183,14 +278,7 @@ export const actionSchemas = {
     .strict(),
   log_food: logSchema,
   delete_entry: z.object({ id: z.uuid() }).strict(),
-  update_entry: z
-    .object({
-      id: z.uuid(),
-      date: dateSchema,
-      meal: z.enum(["breakfast", "lunch", "dinner", "snack"]),
-      notes: z.string().max(2000),
-    })
-    .strict(),
+  update_entry: entryUpdateSchema,
   get_stats: z.object({ start: dateSchema, end: dateSchema }).strict(),
   get_profile: z.object({}).strict(),
   update_profile: z

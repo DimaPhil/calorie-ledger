@@ -20,7 +20,9 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"server/**/*.ts\" \"api/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"*.ts\" \"*.json\" \".github/**/*.yml\""
   },
   "dependencies": {
+    "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "cookie-parser": "1.4.7",
     "express": "5.2.1",
     "luxon": "3.7.2",
@@ -32,6 +34,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@electric-sql/pglite": "0.5.8",
+    "@modelcontextprotocol/client": "2.0.0",
     "@playwright/test": "1.63.0",
     "@types/cookie-parser": "1.4.10",
     "@types/express": "5.0.6",

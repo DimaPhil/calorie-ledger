@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS sessions (
  token_hash text PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  expires_at timestamptz NOT NULL
 );
+CREATE TABLE IF NOT EXISTS goals (
+ user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ effective_date date NOT NULL, data jsonb NOT NULL,
+ PRIMARY KEY(user_id,effective_date)
+);
+CREATE TABLE IF NOT EXISTS checkins (
+ user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ date date NOT NULL, data jsonb NOT NULL,
+ PRIMARY KEY(user_id,date)
+);
 CREATE TABLE IF NOT EXISTS api_tokens (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  name text NOT NULL, token_hash text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now(),
@@ -108,6 +118,15 @@ CREATE TABLE IF NOT EXISTS entries (
  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(user_id, idempotency_key)
 );
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted boolean NOT NULL DEFAULT false;
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS source_input jsonb;
+CREATE UNIQUE INDEX IF NOT EXISTS entries_owner_id ON entries(user_id,id);
+CREATE TABLE IF NOT EXISTS entry_dependencies (
+ user_id uuid NOT NULL, entry_id uuid NOT NULL,
+ kind text NOT NULL CHECK(kind IN ('products','dishes')), source_id uuid NOT NULL,
+ PRIMARY KEY(user_id,kind,source_id,entry_id),
+ FOREIGN KEY(user_id,entry_id) REFERENCES entries(user_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS entry_dependencies_entry ON entry_dependencies(user_id,entry_id);
 CREATE INDEX IF NOT EXISTS entries_user_date ON entries(user_id, date);
 CREATE INDEX IF NOT EXISTS products_user ON products(user_id);
 CREATE INDEX IF NOT EXISTS dishes_user ON dishes(user_id);
@@ -116,5 +135,26 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 );
 CREATE TABLE IF NOT EXISTS search_cache (
  query text PRIMARY KEY, data jsonb NOT NULL, expires_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_clients (
+ id text PRIMARY KEY, data jsonb NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_requests (
+ id text PRIMARY KEY, client_id text NOT NULL REFERENCES oauth_clients(id),
+ data jsonb NOT NULL, csrf_hash text NOT NULL, expires_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_codes (
+ code_hash text PRIMARY KEY, client_id text NOT NULL REFERENCES oauth_clients(id),
+ user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ data jsonb NOT NULL, expires_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_grants (
+ id uuid PRIMARY KEY REFERENCES api_tokens(id) ON DELETE CASCADE,
+ client_id text NOT NULL REFERENCES oauth_clients(id), resource text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+ token_hash text PRIMARY KEY, grant_id uuid NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+ kind text NOT NULL CHECK(kind IN ('access','refresh')), used boolean NOT NULL DEFAULT false,
+ expires_at timestamptz NOT NULL
 );
 `;

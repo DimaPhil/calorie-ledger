@@ -1,11 +1,370 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { createHash } from "node:crypto";
+import { createServer } from "node:http";
+import { DateTime } from "luxon";
+// These journeys intercept requests to simulate failures; service workers can bypass routing.
+test.use({ serviceWorkers: "block" });
+test("saved food correction updates a linked journal entry through the UI", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${info.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  await expect(page.locator(".metrics")).toBeVisible();
+  const headers = { Origin: "http://127.0.0.1:3100" };
+  const name = `Linked test ${info.project.name} ${info.retry}`;
+  const product = await (
+    await page.request.post("/api/actions/save_product", {
+      headers,
+      data: { product: { name, nutrients: { calories: 100 } } },
+    })
+  ).json();
+  const profile = await (
+    await page.request.post("/api/actions/get_profile", { headers, data: {} })
+  ).json();
+  await page.request.post("/api/actions/log_food", {
+    headers,
+    data: {
+      productId: product.id,
+      amount: 50,
+      unit: "g",
+      date: profile.today,
+      idempotencyKey: `linked-ui-${info.project.name}-${info.retry}`,
+    },
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Foods", exact: true }).click();
+  const card = page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  await card.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Saving corrections recalculates linked journal entries, including dishes using this food.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await page.getByLabel("Energy (kcal)", { exact: true }).fill("200");
+  await page.getByRole("dialog").getByRole("button", { name: /Save/ }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  const row = page.getByRole("button", {
+    name: `View entry: ${name}`,
+    exact: true,
+  });
+  await expect(row).toContainText("100");
+  await row.click();
+  await expect(
+    page.getByText(
+      "Automatically updates when its saved food or recipe changes.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+});
+test("journal date navigation keeps entries, totals and logging on the selected day", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${info.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  const picker = page.getByLabel("Journal date", { exact: true });
+  await expect(picker).not.toHaveValue("");
+  const today = await picker.inputValue();
+  const yesterday = DateTime.fromISO(today).minus({ days: 1 }).toISODate()!;
+  const previous = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/actions/get_stats") &&
+      r.request().postDataJSON().start === yesterday &&
+      r.request().postDataJSON().end === yesterday,
+  );
+  await page.getByRole("button", { name: "Previous day", exact: true }).click();
+  expect((await previous).ok()).toBe(true);
+  await expect(picker).toHaveValue(yesterday);
+  await expect(page.locator(".journal-date-label")).toContainText("Yesterday");
+  await page.getByRole("button", { name: "＋ Log food", exact: true }).click();
+  await expect(page.getByLabel("Date eaten", { exact: true })).toHaveValue(
+    yesterday,
+  );
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Next day", exact: true }).click();
+  await expect(picker).toHaveValue(today);
+  await picker.fill("2024-03-01");
+  await page.getByRole("button", { name: "Previous day", exact: true }).click();
+  await expect(picker).toHaveValue("2024-02-29");
+  await page.getByRole("button", { name: "Month", exact: true }).click();
+  await expect(page.locator(".journal-date-label")).toContainText(
+    "Feb 1, 2024 – Feb 29, 2024",
+  );
+  await page.getByRole("button", { name: "Next month", exact: true }).click();
+  await expect(picker).toHaveValue("2024-03-01");
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(page.locator(".journal-date-label")).toContainText(
+    "Feb 26, 2024 – Mar 3, 2024",
+  );
+  await page
+    .getByRole("button", { name: "Previous week", exact: true })
+    .click();
+  await expect(picker).toHaveValue("2024-02-19");
+  await page.getByRole("button", { name: "Custom", exact: true }).click();
+  await expect(page.getByLabel("From", { exact: true })).toHaveValue(
+    "2024-02-19",
+  );
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(picker).toHaveValue(today);
+  await expect(
+    page.getByRole("button", { name: "Day", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+});
+test("journal detail modal edits component snapshots without changing saved foods", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${info.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  await expect(page.locator(".metrics")).toBeVisible();
+  const headers = { Origin: "http://127.0.0.1:3100" };
+  const product = await (
+    await page.request.post("/api/actions/save_product", {
+      headers,
+      data: {
+        product: {
+          name: `Modal oats ${info.project.name}`,
+          nutrients: { calories: 100, protein: 5 },
+        },
+      },
+    })
+  ).json();
+  const profile = await (
+    await page.request.post("/api/actions/get_profile", { headers, data: {} })
+  ).json();
+  const logged = await (
+    await page.request.post("/api/actions/log_food", {
+      headers,
+      data: {
+        productId: product.id,
+        amount: 100,
+        unit: "g",
+        date: profile.today,
+        idempotencyKey: `modal-entry-${info.project.name}-${info.retry}`,
+      },
+    })
+  ).json();
+  await page.reload();
+  const opener = page.getByRole("button", {
+    name: `View entry: Modal oats ${info.project.name}`,
+    exact: true,
+  });
+  await opener.focus();
+  await opener.press("Enter");
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("heading", { name: "Entry nutrition" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(opener).toBeFocused();
+  await opener.click();
+  await dialog.getByRole("button", { name: "Edit entry", exact: true }).click();
+  await dialog
+    .getByLabel("Entry name", { exact: true })
+    .fill(`Corrected meal ${info.project.name}`);
+  await dialog.getByLabel("Entry amount", { exact: true }).fill("200");
+  await dialog
+    .getByRole("button", { name: "Scale components to this amount" })
+    .click();
+  await expect(
+    dialog.getByLabel("Calories (kcal)", { exact: true }),
+  ).toHaveValue("200");
+  await dialog.getByLabel("Calories (kcal)", { exact: true }).fill("180");
+  await dialog
+    .getByRole("button", { name: "Add component", exact: true })
+    .click();
+  const second = dialog.getByRole("group", {
+    name: "Component 2",
+    exact: true,
+  });
+  await second.getByLabel("Component name").fill("Extra fruit");
+  await second.getByLabel("Component grams").fill("25");
+  await second.getByLabel("Calories (kcal)").fill("20");
+  await expect(dialog.getByRole("status")).toContainText(
+    "Entry total: 200 kcal",
+  );
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await expect(page.locator("body")).toHaveJSProperty(
+    "scrollWidth",
+    await page.locator("body").evaluate((e) => e.clientWidth),
+  );
+  await page.screenshot({
+    path: info.outputPath("entry-editor.png"),
+    fullPage: true,
+  });
+  await dialog.getByRole("button", { name: "Save correction" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page
+      .locator(".entry")
+      .filter({ hasText: `Corrected meal ${info.project.name}` })
+      .locator(".entry-energy"),
+  ).toContainText("200");
+  const products = await (
+    await page.request.post("/api/actions/list_products", { headers, data: {} })
+  ).json();
+  expect(
+    products.find((p: { id: string }) => p.id === product.id).nutrients
+      .calories,
+  ).toBe(100);
+  await page
+    .getByRole("button", {
+      name: `View entry: Corrected meal ${info.project.name}`,
+      exact: true,
+    })
+    .click();
+  await dialog.getByRole("button", { name: "Edit entry", exact: true }).click();
+  await dialog.getByLabel("Entry notes").fill("Keep this draft");
+  await page.request.post("/api/actions/update_entry", {
+    headers,
+    data: {
+      id: logged.entry.id,
+      date: profile.today,
+      meal: "snack",
+      notes: "Changed elsewhere",
+      expectedRevision: 1,
+    },
+  });
+  await dialog.getByRole("button", { name: "Save correction" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("changed elsewhere");
+  await expect(dialog.getByLabel("Entry notes")).toHaveValue("Keep this draft");
+});
+test("OAuth sign-in, consent, callback and revocation", async ({
+  page,
+}, testInfo) => {
+  const origin = "http://127.0.0.1:3100";
+  const receiver = createServer((_req, res) => {
+    res.setHeader("Content-Type", "text/html");
+    res.end("<h1>Connected</h1>");
+  });
+  await new Promise<void>((resolve) =>
+    receiver.listen(0, "127.0.0.1", resolve),
+  );
+  try {
+    const callback = `http://127.0.0.1:${(receiver.address() as { port: number }).port}/callback`;
+    const verifier = "a".repeat(43);
+    const registered = await page.request.post("/register", {
+      data: {
+        client_name: `Browser connector ${testInfo.project.name}`,
+        redirect_uris: [callback],
+        token_endpoint_auth_method: "none",
+      },
+    });
+    expect(registered.status()).toBe(201);
+    const { client_id } = await registered.json();
+    const params = new URLSearchParams({
+      client_id,
+      redirect_uri: callback,
+      response_type: "code",
+      code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+      code_challenge_method: "S256",
+      resource: `${origin}/mcp`,
+      scope: "ledger",
+      state: "browser-state",
+    });
+    await page.goto(`/authorize?${params}`);
+    await expect(
+      page.getByRole("heading", { name: "Connect Calorie Ledger" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("read, add, edit, and delete", { exact: false }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Username", { exact: true })
+      .fill(`tester-${testInfo.project.name}`);
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill("test-password-12345");
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+    await expect(page.locator("body")).toHaveJSProperty(
+      "scrollWidth",
+      await page.locator("body").evaluate((e) => e.clientWidth),
+    );
+    await page.getByRole("button", { name: "Allow access" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Connected", exact: true }),
+    ).toBeVisible();
+    const returned = new URL(page.url());
+    expect(returned.searchParams.get("state")).toBe("browser-state");
+    expect(returned.searchParams.get("iss")).toBe(origin);
+    const exchanged = await page.request.post(`${origin}/token`, {
+      form: {
+        grant_type: "authorization_code",
+        client_id,
+        code: returned.searchParams.get("code")!,
+        code_verifier: verifier,
+        redirect_uri: callback,
+        resource: `${origin}/mcp`,
+      },
+    });
+    expect(exchanged.status()).toBe(200);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page
+      .locator(".token-list .food-row")
+      .filter({ hasText: `OAuth: Browser connector ${testInfo.project.name}` })
+      .getByRole("button", { name: "Revoke" })
+      .click();
+    await expect(
+      page.getByText("Token revoked.", { exact: true }),
+    ).toBeVisible();
+  } finally {
+    receiver.closeAllConnections();
+    await new Promise<void>((resolve) => receiver.close(() => resolve()));
+  }
+});
 test("food → dish → custom meal → statistics → token lifecycle", async ({
   page,
 }, testInfo) => {
   const name = `Oats ${testInfo.project.name}`;
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -14,7 +373,8 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     page.getByRole("heading", { name: "Your day, on the record." }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Foods", exact: true }).click();
-  await page.getByRole("button", { name: "＋ Custom food" }).click();
+  await page.getByRole("button", { name: "＋ Custom food" }).focus();
+  await page.getByRole("button", { name: "＋ Custom food" }).press("Enter");
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Food name", { exact: true }).fill(name);
   await dialog.getByLabel("Brand", { exact: true }).fill("Everyday");
@@ -57,8 +417,29 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     }),
   });
   await dish.getByRole("button", { name: "Log dish" }).click();
+  if (testInfo.project.name !== "chromium") {
+    const dateBox = await dialog.getByLabel("Date eaten").boundingBox();
+    const mealBox = await dialog
+      .getByLabel("Meal", { exact: true })
+      .boundingBox();
+    expect(dateBox!.y + dateBox!.height).toBeLessThanOrEqual(mealBox!.y);
+  }
   await dialog.getByText("Different recipe this time?").click();
   await dialog.getByRole("button", { name: "Customize this meal" }).click();
+  if (testInfo.project.name !== "chromium") {
+    const ingredient = dialog.locator(".ingredient");
+    const selectBox = await ingredient
+      .getByLabel("Ingredient 1", { exact: true })
+      .boundingBox();
+    const removeBox = await ingredient
+      .getByRole("button", { name: /Remove ingredient/ })
+      .boundingBox();
+    expect(
+      Math.abs(
+        selectBox!.y + selectBox!.height - removeBox!.y - removeBox!.height,
+      ),
+    ).toBeLessThanOrEqual(1);
+  }
   await dialog
     .locator(".ingredient")
     .getByLabel("Amount", { exact: true })
@@ -82,6 +463,14 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     await page.getByRole("button", { name: period, exact: true }).click();
     await expect(page.locator(".entries")).toBeVisible();
   }
+  await page.getByRole("button", { name: "Custom", exact: true }).click();
+  await page.getByLabel("From", { exact: true }).fill("2099-01-02");
+  await page.getByLabel("Through", { exact: true }).fill("2099-01-01");
+  await expect(page.getByRole("alert")).toContainText("Choose a date range");
+  await expect(page.locator(".goal-card")).toHaveCount(0);
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(page.locator(".entries")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.locator("body")).toHaveJSProperty(
     "scrollWidth",
     await page.locator("body").evaluate((e) => e.clientWidth),
@@ -108,11 +497,48 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
     .click();
   await expect(page.getByText("Token revoked.", { exact: true })).toBeVisible();
 });
+test("saved matches can be broadened with the keyboard", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("test-password-12345");
+  await page.getByRole("button", { name: "Sign in →" }).click();
+  await page.getByRole("button", { name: "Foods", exact: true }).click();
+  const query = `Oats ${testInfo.project.name}`;
+  await page.getByLabel("Search products").fill(query);
+  await page.getByRole("button", { name: "Search foods", exact: true }).click();
+  const broaden = page.getByRole("button", {
+    name: "Search for other matches",
+  });
+  await expect(broaden).toBeVisible();
+  // Editing the input must not silently change the query being expanded.
+  await page.getByLabel("Search products").fill("different query");
+  await broaden.focus();
+  const request = page.waitForRequest("**/api/actions/search_products");
+  await page.keyboard.press("Enter");
+  expect((await request).postDataJSON()).toEqual({ query, broaden: true });
+  await expect(
+    page.getByText("External lookup is disabled in automated tests."),
+  ).toBeVisible();
+  await expect(broaden).toHaveCount(0);
+  await expect(page.locator(".search-results")).toContainText(query);
+  await expect(page.locator("body")).toHaveJSProperty(
+    "scrollWidth",
+    await page.locator("body").evaluate((e) => e.clientWidth),
+  );
+});
 test("switching accounts clears products, search results and nutrition totals", async ({
   page,
 }, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -147,7 +573,9 @@ test("a committed log with a lost response cannot be duplicated by editing and r
   page,
 }, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -188,9 +616,11 @@ test("a committed log with a lost response cannot be duplicated by editing and r
 });
 test("keyboard dialog, incomplete food, and provider outage", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/");
-  await page.getByLabel("Username", { exact: true }).fill("tester");
+  await page
+    .getByLabel("Username", { exact: true })
+    .fill(`tester-${testInfo.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");
@@ -201,7 +631,8 @@ test("keyboard dialog, incomplete food, and provider outage", async ({
   await expect(
     page.getByText("External lookup is disabled in automated tests."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "＋ Custom food" }).click();
+  await page.getByRole("button", { name: "＋ Custom food" }).focus();
+  await page.getByRole("button", { name: "＋ Custom food" }).press("Enter");
   await expect(page.getByLabel("Food name", { exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();

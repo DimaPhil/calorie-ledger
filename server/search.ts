@@ -26,6 +26,7 @@ const offMap: Record<string, [keyof Nutrients, number]> = {
   cholesterol: ["cholesterol", 1000],
   potassium: ["potassium", 1000],
   calcium: ["calcium", 1000],
+  magnesium: ["magnesium", 1000],
   iron: ["iron", 1000],
   "vitamin-c": ["vitaminC", 1000],
   "vitamin-d": ["vitaminD", 1000000],
@@ -77,7 +78,7 @@ export async function externalSearch(
   database: Database,
   query: string,
 ): Promise<{ products: ProductInput[]; warnings: string[] }> {
-  const key = "v2:" + normalize(query);
+  const key = "v3:" + normalize(query);
   const { rows } = await database.query(
     "SELECT data FROM search_cache WHERE query=$1 AND expires_at>now()",
     [key],
@@ -149,6 +150,7 @@ const usdaNutrients: Record<number, [keyof Nutrients, string]> = {
   1092: ["potassium", "MG"],
   1087: ["calcium", "MG"],
   1089: ["iron", "MG"],
+  1090: ["magnesium", "MG"],
   1162: ["vitaminC", "MG"],
   1114: ["vitaminD", "UG"],
 };
@@ -213,6 +215,7 @@ export async function search(
   query: string,
   external: boolean,
   provider: Provider,
+  broaden = false,
 ): Promise<SearchResult> {
   const normalized = normalize(query);
   if (!normalized)
@@ -220,6 +223,9 @@ export async function search(
       status: "not_found",
       query,
       candidates: [],
+      preferredProductId: null,
+      matchType: "none",
+      requiresProductConfirmation: true,
       reason: "Provide a food name, brand, or barcode.",
       warnings: [],
     };
@@ -243,16 +249,8 @@ export async function search(
       normalize(`${p.brand} ${p.name}`) === normalized ||
       p.barcode === query,
   );
-  if (preferred || exact.length === 1)
-    return {
-      status: "matched",
-      query,
-      candidates: [preferred || exact[0]],
-      reason: preferred
-        ? "Your previously confirmed choice."
-        : "An exact match in your saved foods.",
-      warnings: [],
-    };
+  const selected = preferred || (exact.length === 1 ? exact[0] : undefined);
+  const requiresProductConfirmation = !selected || broaden;
   const tokens = normalized.split(" ");
   const local = saved
     .map((p) => ({
@@ -277,17 +275,31 @@ export async function search(
       updatedAt: new Date().toISOString(),
     }));
   const candidates = [
-    ...exact,
-    ...local.filter((p) => !exact.includes(p)),
+    ...(selected ? [selected] : []),
+    ...exact.filter((p) => p !== selected),
+    ...local.filter((p) => !exact.includes(p) && p !== selected),
     ...remote,
   ].slice(0, 5);
   return {
-    status: candidates.length ? "choose" : "not_found",
+    status: !requiresProductConfirmation
+      ? "matched"
+      : candidates.length
+        ? "choose"
+        : "not_found",
     query,
     candidates,
-    reason: candidates.length
-      ? "Choose a product and check the brand and nutrition label. Save external candidates before logging."
-      : "No matching food found. Try a brand, barcode, or add a custom product.",
+    preferredProductId: selected?.id || null,
+    matchType: preferred
+      ? "confirmed_alias"
+      : selected
+        ? "exact_saved"
+        : "none",
+    requiresProductConfirmation,
+    reason: !requiresProductConfirmation
+      ? "Use preferredProductId without asking which product again. Alternatives are included; amount and portion still need validation."
+      : candidates.length
+        ? "Choose a product and check the brand and nutrition label. Save external candidates before logging."
+        : "No matching food found. Try a brand, barcode, or add a custom product.",
     warnings: found.warnings,
   };
 }
