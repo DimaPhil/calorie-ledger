@@ -265,6 +265,37 @@ export const actionSchemas = {
     .object({ query: z.string().trim().min(1).max(200), productId: z.uuid() })
     .strict(),
   list_dishes: z.object({}).strict(),
+  list_menu_recipes: z
+    .object({
+      language: z.enum(["en", "ru"]).default("en"),
+      query: z.string().trim().min(1).max(200).optional(),
+    })
+    .strict(),
+  get_menu_recipe: z
+    .object({
+      recipeId: z.string().min(1).max(100),
+      language: z.enum(["en", "ru"]).default("en"),
+    })
+    .strict(),
+  create_menu_dish: z
+    .object({
+      recipeId: z.string().min(1).max(100),
+      language: z.enum(["en", "ru"]).default("en"),
+      servings: z.number().positive().max(1000),
+      ingredients: z
+        .array(
+          z
+            .object({
+              index: z.number().int().nonnegative(),
+              productId: z.uuid(),
+              amount: z.number().positive().max(100000),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(100),
+    })
+    .strict(),
   save_dish: z.object({ id: z.uuid().optional(), dish: dishSchema }).strict(),
   delete_dish: z.object({ id: z.uuid() }).strict(),
   preview_dish: z.object({ dish: dishSchema }).strict(),

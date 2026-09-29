@@ -5,10 +5,12 @@ export function Modal({
   title,
   onClose,
   children,
+  closeDisabled = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  closeDisabled?: boolean;
 }) {
   const { t } = useI18n();
   useEffect(() => {
@@ -28,13 +30,14 @@ export function Modal({
     <dialog
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        if (!closeDisabled) onClose();
       }}
       aria-labelledby="modal-title"
     >
       <div className="modal-heading">
         <h2 id="modal-title">{title}</h2>
         <button
+          disabled={closeDisabled}
           onClick={onClose}
           aria-label={t("Close dialog", "Закрыть окно")}
         >

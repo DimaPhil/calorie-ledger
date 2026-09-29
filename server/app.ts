@@ -22,6 +22,7 @@ import { AppError } from "./nutrition.js";
 import { externalSearch, type Provider } from "./search.js";
 
 const instructions =
+  "For menu inspiration use list_menu_recipes and get_menu_recipe. To save one as a reusable dish, map every weighed ingredient to a confirmed saved product and pass its explicit full-batch grams to create_menu_dish. Scale amounts by requested servings / source servings; do not infer product identity or copy approximate menu macros as verified nutrition. Optional to-taste ingredients need explicit grams to include. Creating a dish does not log it. " +
   "For planning or 'what would it cost to eat', use preview_food, never log_food or save_product unless requested. Preview saved foods/dishes or pass an inline external product; it returns nutrition and hypothetical goal impact without writes. Every tool response includes today's dailyCheckIn context. If shouldAsk is true, ask one brief optional check-in question for the new local day without blocking the food task; do not repeat it in the same conversation/day. Use update_checkin for reported fields, preserving omitted measurements. checkedIn differs from loggingComplete. Do not ask for fruit/vegetables or fish tracking. " +
   "Read get_goals for effective-date targets and check-ins. Treat sodium, saturated fat and free sugars as limits, unknown nutrition as unknown, and only confirmed complete days as complete. Free sugars are not total or added sugars. Never change goals automatically or mark a day complete without user confirmation. Check-ins replace reported daily totals; preserve other fields. " +
   "New ordinary logs auto-update when their saved food, recipe or ingredients change. Older logs and customized ingredient overrides stay fixed. Manual entry name/quantity/component corrections detach that entry; date/meal/notes-only corrections keep it linked. Use a new saved recipe for a genuinely different batch rather than changing a template that linked logs follow. " +
@@ -54,6 +55,12 @@ const descriptions: Record<Action, string> = {
   remember_choice:
     "Remember an explicitly confirmed product for a free-form query.",
   list_dishes: "List reusable dish templates.",
+  list_menu_recipes:
+    "Browse menu recipe summaries by optional title/ingredient query. language defaults to English; ru returns Russian. Read-only, no dish or journal changes.",
+  get_menu_recipe:
+    "Read a menu recipe, cooking steps and approximate macros. ing tuples are [key, grams, name, hint]; # rows are headings, zero amounts are to taste. Ingredient indexes include headings. Recipe amounts apply to its source servings. Approximate menu macros are not verified saved-food nutrition.",
+  create_menu_dish:
+    "Create a reusable dish from a menu recipe after reviewing ingredient mappings. Provide every positive-weight ingredient index with a confirmed saved productId and explicit full-batch amount in grams; scale source grams by requested servings / source servings. Zero/to-taste ingredients may be included with measured grams; omitted ones are noted. Rejects missing mappings, duplicates, headings and other users' foods. Uses saved-food nutrition, preserves cooking instructions, creates no journal entry. Returns the new dish; use log_food only when separately requested.",
   save_dish:
     "Create/edit a recipe template with ingredient amounts and units. Edits recalculate linked journal entries; save a new recipe for a different batch. servings is the yield of the whole recipe; cookedWeight is optional grams after cooking.",
   delete_dish: "Delete a dish template; preserve historic logs.",

@@ -2,6 +2,34 @@
   display: grid;
   gap: 18px;
 }
+.menu-import {
+  display: grid;
+  gap: 16px;
+}
+.menu-import fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.menu-import .ingredient {
+  margin-bottom: 14px;
+}
+.menu-import .row {
+  align-items: end;
+}
+.menu-import .row > button {
+  margin-bottom: 16px;
+}
+.menu-import-confirm {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+.menu-import-confirm input {
+  width: auto;
+  margin-top: 5px;
+}
 .menu-intro {
   max-width: 740px;
   display: grid;

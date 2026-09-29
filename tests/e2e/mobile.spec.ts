@@ -5,6 +5,8 @@ import { checkProgress } from "./progress.js";
 import { checkMenu } from "./menu.js";
 
 test("phone pages and dialogs fit the viewport", async ({ page }, info) => {
+  // Covers all pages, goals, charts, menu import and cross-tab localization.
+  test.setTimeout(60_000);
   await page.goto("/");
   await expect(page.getByLabel("Language / Язык", { exact: true })).toHaveValue(
     "en",
@@ -16,7 +18,7 @@ test("phone pages and dialogs fit the viewport", async ({ page }, info) => {
   await page.getByLabel("Language / Язык", { exact: true }).selectOption("en");
   await page
     .getByLabel("Username", { exact: true })
-    .fill(`tester-${info.project.name}`);
+    .fill(`layout-${info.project.name}`);
   await page
     .getByLabel("Password", { exact: true })
     .fill("test-password-12345");

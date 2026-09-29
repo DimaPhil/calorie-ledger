@@ -8,8 +8,10 @@ if (testing && process.env.NODE_ENV === "production")
   throw new Error("Test mode is forbidden in production.");
 const database = testing ? await testDatabase() : db();
 if (testing) {
-  for (const browser of ["chromium", "mobile", "safari"])
+  for (const browser of ["chromium", "mobile", "safari"]) {
     await createUser(database, `tester-${browser}`, "test-password-12345");
+    await createUser(database, `layout-${browser}`, "test-password-12345");
+  }
   await createUser(database, "other", "other-password-12345");
 }
 const app = createApp(

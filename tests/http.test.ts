@@ -148,6 +148,30 @@ describe("real MCP client pipeline", () => {
       },
     });
     const product = JSON.parse((created.content as { text: string }[])[0].text);
+    const menu = await client.callTool({
+      name: "get_menu_recipe",
+      arguments: { recipeId: "tuna-frittata" },
+    });
+    expect(menu.isError).not.toBe(true);
+    const recipe = JSON.parse((menu.content as { text: string }[])[0].text);
+    const imported = await client.callTool({
+      name: "create_menu_dish",
+      arguments: {
+        recipeId: recipe.id,
+        servings: recipe.servings,
+        ingredients: recipe.ing.flatMap(
+          ([key, amount]: [string | null, number | string], index: number) =>
+            key !== "#" && typeof amount === "number" && amount > 0
+              ? [{ index, amount, productId: product.id }]
+              : [],
+        ),
+      },
+    });
+    expect(imported.isError).not.toBe(true);
+    expect(
+      JSON.parse((imported.content as { text: string }[])[0].text).name,
+    ).toBe("Tuna & spinach frittata");
+    expect((imported.structuredContent as any).dailyCheckIn).toBeDefined();
     const originalQuery = database.query.bind(database);
     const failedContext = vi
       .spyOn(database, "query")
