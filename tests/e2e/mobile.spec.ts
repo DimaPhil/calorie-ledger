@@ -5,6 +5,8 @@ import { checkProgress } from "./progress.js";
 import { checkMenu } from "./menu.js";
 
 test("phone pages and dialogs fit the viewport", async ({ page }, info) => {
+  // Covers all pages, goals, charts, menu import and cross-tab localization.
+  test.setTimeout(60_000);
   await page.goto("/");
   await expect(page.getByLabel("Language / Язык", { exact: true })).toHaveValue(
     "en",
