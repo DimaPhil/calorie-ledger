@@ -29,6 +29,21 @@ const escape = (s: string) =>
         c
       ]!,
   );
+const bilingual = (en: string, ru: string) =>
+  `<span data-en="${escape(en)}" data-ru="${escape(ru)}">${escape(en)}</span>`;
+const languageScript = `const language = document.getElementById('language');
+function setLanguage(value) {
+  const selected = value === 'ru' ? 'ru' : 'en';
+  document.documentElement.lang = selected;
+  language.value = selected;
+  document.querySelectorAll('[data-en][data-ru]').forEach(element => { element.textContent = element.dataset[selected]; });
+  document.title = document.querySelector('h1').textContent;
+}
+try { setLanguage(localStorage.getItem('calorie-ledger-language')); } catch { setLanguage('en'); }
+language.addEventListener('change', () => {
+  setLanguage(language.value);
+  try { localStorage.setItem('calorie-ledger-language', language.value); } catch {}
+});`;
 function validateResource(value?: URL) {
   if (value?.href !== resource())
     throw new InvalidRequestError(
@@ -249,10 +264,11 @@ export function oauthRouter(database: Database) {
   });
   router.get("/oauth/consent", async (req, res) => {
     const row = await pending(req);
+    const nonce = secret();
     // Browsers also apply form-action to the OAuth callback redirect after POST.
     res.setHeader(
       "Content-Security-Policy",
-      `default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${new URL(row.data.redirectUri).origin}; frame-ancestors 'none'; base-uri 'none'`,
+      `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; form-action 'self' ${new URL(row.data.redirectUri).origin}; frame-ancestors 'none'; base-uri 'none'`,
     );
     let username = "";
     try {
@@ -263,7 +279,7 @@ export function oauthRouter(database: Database) {
     res
       .type("html")
       .send(
-        `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Calorie Ledger</title><style>body{font:17px system-ui;background:#f7f7f2;color:#263d32;max-width:480px;padding:24px;margin:5vh auto}label{display:block;margin:16px 0}input,button{box-sizing:border-box;font:inherit;padding:12px;width:100%;margin-top:8px}button{cursor:pointer}small{overflow-wrap:anywhere}</style><h1>Connect Calorie Ledger</h1><p><strong>${escape(row.client.client_name)}</strong> wants access to your food journal.</p><p>This lets it read, add, edit, and delete your foods, recipes, journal entries, and preferences.</p><p>Return address:<br><small>${escape(new URL(row.data.redirectUri).origin)}</small></p><p>Access lasts up to 90 days. Revoke it anytime in Settings → Agent tokens.</p><form method="post" action="/oauth/consent"><input type="hidden" name="request" value="${escape(row.id)}">${username ? `<p>Signed in as <strong>${escape(username)}</strong>.</p>` : '<label>Username<input name="username" autocomplete="username" required maxlength="60"></label><label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>'}<button name="decision" value="allow">Allow access</button><button name="decision" value="deny" formnovalidate>Cancel</button></form></html>`,
+        `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Calorie Ledger</title><style>body{font:17px system-ui;background:#f7f7f2;color:#263d32;max-width:480px;padding:24px;margin:5vh auto}label{display:block;margin:16px 0}input,button,select{box-sizing:border-box;font:inherit;padding:12px;max-width:100%}input,button{width:100%;margin-top:8px}button{cursor:pointer}small{overflow-wrap:anywhere}.language{display:flex;justify-content:flex-end;align-items:center;gap:12px}</style></head><body><label class="language" for="language">${bilingual("Language", "Язык")}<select id="language"><option value="en" lang="en">English</option><option value="ru" lang="ru">Русский</option></select></label><main><h1>${bilingual("Connect Calorie Ledger", "Подключить Calorie Ledger")}</h1><p><strong>${escape(row.client.client_name)}</strong> ${bilingual("wants access to your food journal.", "запрашивает доступ к вашему дневнику питания.")}</p><p>${bilingual("This lets it read, add, edit, and delete your foods, recipes, journal entries, and preferences.", "Это позволит читать, добавлять, изменять и удалять ваши продукты, рецепты, записи дневника и настройки.")}</p><p>${bilingual("Return address:", "Адрес возврата:")}<br><small>${escape(new URL(row.data.redirectUri).origin)}</small></p><p>${bilingual("Access lasts up to 90 days. Revoke it anytime in Settings → Agent tokens.", "Доступ действует до 90 дней. Его можно отозвать в разделе Настройки → Токены агентов.")}</p><form method="post" action="/oauth/consent"><input type="hidden" name="request" value="${escape(row.id)}">${username ? `<p>${bilingual("Signed in as", "Вы вошли как")} <strong>${escape(username)}</strong>.</p>` : `<label>${bilingual("Username", "Имя пользователя")}<input name="username" autocomplete="username" required maxlength="60"></label><label>${bilingual("Password", "Пароль")}<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>`}<button name="decision" value="allow">${bilingual("Allow access", "Разрешить доступ")}</button><button name="decision" value="deny" formnovalidate>${bilingual("Cancel", "Отмена")}</button></form></main><script nonce="${nonce}">${languageScript}</script></body></html>`,
       );
   });
   router.post(

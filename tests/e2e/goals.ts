@@ -104,7 +104,7 @@ export async function checkGoals(page: Page, info: TestInfo) {
     .click();
   await expect(dialog).toContainText("No known days in this interval");
   await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.getByRole("button", { name: "02-10", exact: true }).click();
+  await page.getByRole("button", { name: "Feb 10, 2026", exact: true }).click();
   await expect(page.getByLabel("Journal date", { exact: true })).toHaveValue(
     day,
   );

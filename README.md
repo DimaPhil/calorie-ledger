@@ -86,7 +86,9 @@ This is a food diary, not a medical recommendation engine. It does not infer cal
 
 ## Repository map
 
-The Menu tab is a static recipe library imported from the user-provided `protein-kitchen.html` on September 28, 2026. Its 22 Russian recipes and original generated illustrations are retained in `src/menu-data.json` and `public/menu/`; the original page scripts and external fonts are not shipped. Nutrition is an estimate from the source ingredient table (using each ingredient's stated preparation basis), and shopping availability is an unverified suggestion. Browsing or scaling recipes does not save foods, dishes, or journal entries. Favorites are scoped to the signed-in user in this browser's local storage, not synchronized across devices.
+The interface supports English (default) and Russian through a global language selector, including sign-in, OAuth consent and the offline page. The choice is stored in this browser under `calorie-ledger-language` and synchronized across open app tabs. Saved product names and personal notes are never translated or rewritten; protocol enums and database values stay language-independent.
+
+The Menu tab is a static recipe library imported from the user-provided `protein-kitchen.html` on September 28, 2026. Its 22 Russian recipes and original generated illustrations are retained in `src/menu-data.json` and `public/menu/`, with a complete English text overlay in `src/menu-en.json`; quantities and nutrition are shared between languages. The original page scripts and external fonts are not shipped. Nutrition is an estimate from the source ingredient table (using each ingredient's stated preparation basis), and shopping availability is an unverified suggestion. Browsing or scaling recipes does not save foods, dishes, or journal entries. Favorites are scoped to the signed-in user in this browser's local storage, not synchronized across devices.
 
 | Path | Purpose |
 | --- | --- |

@@ -6,6 +6,14 @@ import { checkMenu } from "./menu.js";
 
 test("phone pages and dialogs fit the viewport", async ({ page }, info) => {
   await page.goto("/");
+  await expect(page.getByLabel("Language / Язык", { exact: true })).toHaveValue(
+    "en",
+  );
+  await page.getByLabel("Language / Язык", { exact: true }).selectOption("ru");
+  await expect(
+    page.getByRole("heading", { name: "С возвращением" }),
+  ).toBeVisible();
+  await page.getByLabel("Language / Язык", { exact: true }).selectOption("en");
   await page
     .getByLabel("Username", { exact: true })
     .fill(`tester-${info.project.name}`);
@@ -109,6 +117,9 @@ test("Home Screen metadata and private offline fallback", async ({ page }) => {
     await expect(
       page.getByRole("heading", { name: "You’re offline." }),
     ).toBeVisible();
+    await page.locator("select").selectOption("ru");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+    await page.locator("select").selectOption("en");
     offline = false;
     await page.getByRole("link", { name: "Try again" }).click();
     await expect(page.getByLabel("Username", { exact: true })).toBeVisible();

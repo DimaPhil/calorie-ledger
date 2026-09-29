@@ -14,6 +14,12 @@ import { DateTime } from "luxon";
 import { GoalsDashboard, GoalAdmin } from "./Goals.js";
 import { Progress } from "./Progress.js";
 import { Modal } from "./Modal.js";
+import {
+  useI18n,
+  LanguageSwitcher,
+  localizeLabel,
+  localizeError,
+} from "./i18n.js";
 const Menu = lazy(() =>
   import("./Menu.js").then((module) => ({ default: module.Menu })),
 );
@@ -36,10 +42,15 @@ import {
   type Nutrients,
 } from "./shared.js";
 
-const num = (n?: number) =>
-  n === undefined
-    ? "—"
-    : new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(n);
+function useAppI18n() {
+  const { t, language, locale } = useI18n();
+  const num = (n?: number) =>
+    n === undefined
+      ? "—"
+      : new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(n);
+  const label = (value: string) => localizeLabel(value, language);
+  return { t, language, locale, num, label };
+}
 const blankProduct = (): ProductInput => ({
   name: "",
   brand: "",
@@ -63,9 +74,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 function Submit({ children, busy }: { children: ReactNode; busy?: boolean }) {
+  const { t } = useAppI18n();
   return (
     <button className="primary" disabled={busy} type="submit">
-      {busy ? "Working…" : children}
+      {busy ? t("Working…", "Сохранение…") : children}
     </button>
   );
 }
@@ -80,9 +92,10 @@ function QuantityFields({
   product?: Product;
   dish?: boolean;
 }) {
+  const { t, num, label } = useAppI18n();
   return (
     <div className="row">
-      <Field label="Amount">
+      <Field label={t("Amount", "Количество")}>
         <input
           required
           type="number"
@@ -94,7 +107,7 @@ function QuantityFields({
           }
         />
       </Field>
-      <Field label="Unit">
+      <Field label={t("Unit", "Единица")}>
         <select
           value={value.unit}
           onChange={(e) =>
@@ -106,25 +119,26 @@ function QuantityFields({
         >
           {(dish ? ["serving", "g", "oz", "kg", "lb"] : units).map((u) => (
             <option key={u} value={u}>
-              {u === "fl_oz" ? "US fl oz" : u === "cup" ? "US cup" : u}
+              {label(u === "fl_oz" ? "US fl oz" : u === "cup" ? "US cup" : u)}
             </option>
           ))}
         </select>
       </Field>
       {product && product.portions.some((p) => p.unit === value.unit) && (
-        <Field label="Portion">
+        <Field label={t("Portion", "Порция")}>
           <select
             value={value.portionLabel || ""}
             onChange={(e) =>
               onChange({ ...value, portionLabel: e.target.value || undefined })
             }
           >
-            <option value="">Choose portion</option>
+            <option value="">{t("Choose portion", "Выберите порцию")}</option>
             {product.portions
               .filter((p) => p.unit === value.unit)
               .map((p) => (
                 <option key={p.label} value={p.label}>
-                  {p.label} · {p.grams}g
+                  {p.label} · {num(p.grams)}
+                  {label("g")}
                 </option>
               ))}
           </select>
@@ -135,6 +149,7 @@ function QuantityFields({
 }
 
 export function App() {
+  const { t } = useAppI18n();
   const [user, setUser] = useState<User | null>();
   useEffect(() => {
     api<User>("/api/me")
@@ -142,7 +157,11 @@ export function App() {
       .catch(() => setUser(null));
   }, []);
   if (user === undefined)
-    return <main className="loading">Opening your ledger…</main>;
+    return (
+      <main className="loading">
+        {t("Opening your ledger…", "Открываем дневник…")}
+      </main>
+    );
   // Remount every account-owned view on login/logout, discarding cached data and
   // pending response handlers from the previous account.
   return (
@@ -156,9 +175,17 @@ function SessionApp({
   user: User | null;
   setUser: (user: User | null) => void;
 }) {
+  const { t, language, locale, num, label } = useAppI18n();
   const [tab, setTab] = useState("Journal");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<string | { perServing: Nutrients }>("");
+  const noticeText =
+    typeof notice === "string"
+      ? localizeError(notice, language)
+      : t(
+          `Per serving: ${num(notice.perServing.calories)} kcal · Protein ${num(notice.perServing.protein)}g · Carbs ${num(notice.perServing.carbs)}g · Fat ${num(notice.perServing.fat)}g.`,
+          `На порцию: ${num(notice.perServing.calories)} ккал · Белок ${num(notice.perServing.protein)} г · Углеводы ${num(notice.perServing.carbs)} г · Жиры ${num(notice.perServing.fat)} г.`,
+        );
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
@@ -204,10 +231,10 @@ function SessionApp({
   }
   const dateLabel =
     !dates.start || !dates.end
-      ? "Choose a date range"
+      ? t("Choose a date range", "Выберите период")
       : dates.start === dates.end
-        ? `${dates.start === today() ? "Today · " : dates.start === DateTime.fromISO(today()).minus({ days: 1 }).toISODate() ? "Yesterday · " : ""}${DateTime.fromISO(dates.start).toFormat("ccc, LLL d, yyyy")}`
-        : `${DateTime.fromISO(dates.start).toFormat("LLL d, yyyy")} – ${DateTime.fromISO(dates.end).toFormat("LLL d, yyyy")}`;
+        ? `${dates.start === today() ? t("Today · ", "Сегодня · ") : dates.start === DateTime.fromISO(today()).minus({ days: 1 }).toISODate() ? t("Yesterday · ", "Вчера · ") : ""}${DateTime.fromISO(dates.start).setLocale(locale).toLocaleString(DateTime.DATE_FULL)}`
+        : `${DateTime.fromISO(dates.start).setLocale(locale).toLocaleString(DateTime.DATE_MED)} – ${DateTime.fromISO(dates.end).setLocale(locale).toLocaleString(DateTime.DATE_MED)}`;
   const fail = (e: unknown) =>
     setError(
       e instanceof Error
@@ -288,22 +315,35 @@ function SessionApp({
     setError("");
   }
   if (user === undefined)
-    return <main className="loading">Opening your ledger…</main>;
+    return (
+      <main className="loading">
+        {t("Opening your ledger…", "Открываем дневник…")}
+      </main>
+    );
   if (!user)
     return (
       <main className="login">
+        <LanguageSwitcher />
         <div className="login-story">
           <a className="brand" href="/">
             ◒ Calorie Ledger
           </a>
-          <span className="eyebrow">A LITTLE MORE AWARE, EVERY DAY</span>
+          <span className="eyebrow">
+            {t(
+              "A LITTLE MORE AWARE, EVERY DAY",
+              "БОЛЬШЕ ОСОЗНАННОСТИ КАЖДЫЙ ДЕНЬ",
+            )}
+          </span>
           <h1>
-            Good food.
-            <br />A clear picture.
+            {t("Good food.", "Хорошая еда.")}
+            <br />
+            {t("A clear picture.", "Полная картина.")}
           </h1>
           <p>
-            Your everyday meals, saved favorites, and a little help from your
-            agent. One quiet place to keep track.
+            {t(
+              "Your everyday meals, saved favorites, and a little help from your agent. One quiet place to keep track.",
+              "Ежедневное питание, любимые продукты и помощь агента. Всё для учёта в одном месте.",
+            )}
           </p>
           <div className="food-art" aria-hidden="true">
             <span>◒</span>
@@ -321,13 +361,17 @@ function SessionApp({
             );
           }}
         >
-          <span className="eyebrow">YOUR PERSONAL FOOD JOURNAL</span>
-          <h2>Welcome back</h2>
-          <p>Sign in to your private ledger.</p>
-          <Field label="Username">
+          <span className="eyebrow">
+            {t("YOUR PERSONAL FOOD JOURNAL", "ВАШ ЛИЧНЫЙ ДНЕВНИК ПИТАНИЯ")}
+          </span>
+          <h2>{t("Welcome back", "С возвращением")}</h2>
+          <p>
+            {t("Sign in to your private ledger.", "Войдите в личный дневник.")}
+          </p>
+          <Field label={t("Username", "Имя пользователя")}>
             <input name="username" autoComplete="username" required autoFocus />
           </Field>
-          <Field label="Password">
+          <Field label={t("Password", "Пароль")}>
             <input
               name="password"
               type="password"
@@ -337,17 +381,25 @@ function SessionApp({
           </Field>
           {error && (
             <p className="error" role="alert">
-              {error}
+              {localizeError(error, language)}
             </p>
           )}
-          <Submit busy={busy}>Sign in →</Submit>
-          <small>Private by default. Accounts are invitation-only.</small>
+          <Submit busy={busy}>{t("Sign in →", "Войти →")}</Submit>
+          <small>
+            {t(
+              "Private by default. Accounts are invitation-only.",
+              "Ваши данные приватны. Регистрация по приглашению.",
+            )}
+          </small>
         </form>
       </main>
     );
   return (
     <div className="shell">
-      <aside className="sidebar" aria-label="Account navigation">
+      <aside
+        className="sidebar"
+        aria-label={t("Account navigation", "Навигация аккаунта")}
+      >
         <a className="brand" href="/">
           ◒{" "}
           <span>
@@ -356,7 +408,8 @@ function SessionApp({
             Ledger
           </span>
         </a>
-        <nav aria-label="Main navigation">
+        <LanguageSwitcher />
+        <nav aria-label={t("Main navigation", "Основная навигация")}>
           {[
             ["Journal", "◷"],
             ["Progress", "↗"],
@@ -364,19 +417,19 @@ function SessionApp({
             ["Dishes", "▤"],
             ["Menu", "☷"],
             ["Settings", "⚙"],
-          ].map(([t, icon]) => (
+          ].map(([tabName, icon]) => (
             <button
-              key={t}
-              aria-current={tab === t ? "page" : undefined}
-              className={tab === t ? "selected" : ""}
+              key={tabName}
+              aria-current={tab === tabName ? "page" : undefined}
+              className={tab === tabName ? "selected" : ""}
               onClick={() => {
-                setTab(t);
+                setTab(tabName);
                 setError("");
                 setNotice("");
               }}
             >
               <span aria-hidden="true">{icon}</span>
-              {t}
+              {label(tabName)}
             </button>
           ))}
         </nav>
@@ -386,11 +439,11 @@ function SessionApp({
           </span>
           <div>
             <strong>{user.username}</strong>
-            <small>Your private space</small>
+            <small>{t("Your private space", "Ваше личное пространство")}</small>
           </div>
           <button
-            aria-label="Sign out"
-            title="Sign out"
+            aria-label={t("Sign out", "Выйти")}
+            title={t("Sign out", "Выйти")}
             onClick={() =>
               void perform(async () => {
                 await api("/api/logout", {});
@@ -407,71 +460,98 @@ function SessionApp({
           <div>
             <span className="eyebrow">
               {tab === "Journal"
-                ? "YOUR FOOD JOURNAL"
+                ? t("YOUR FOOD JOURNAL", "ВАШ ДНЕВНИК ПИТАНИЯ")
                 : tab === "Progress"
-                  ? "THE BIGGER PICTURE"
+                  ? t("THE BIGGER PICTURE", "ОБЩАЯ КАРТИНА")
                   : tab === "Menu"
-                    ? "YOUR RECIPE LIBRARY"
-                    : "YOUR EVERYDAY ESSENTIALS"}
+                    ? t("YOUR RECIPE LIBRARY", "ВАША КОЛЛЕКЦИЯ РЕЦЕПТОВ")
+                    : t("YOUR EVERYDAY ESSENTIALS", "ПРОДУКТЫ НА КАЖДЫЙ ДЕНЬ")}
             </span>
             <h1>
               {tab === "Journal"
-                ? "Your day, on the record."
+                ? t("Your day, on the record.", "Ваш день в деталях.")
                 : tab === "Progress"
-                  ? "See your progress."
+                  ? t("See your progress.", "Следите за прогрессом.")
                   : tab === "Menu"
-                    ? "Good food, within reach."
+                    ? t("Good food, within reach.", "Хорошая еда — это просто.")
                     : tab === "Foods"
-                      ? "Foods you know."
+                      ? t("Foods you know.", "Знакомые продукты.")
                       : tab === "Dishes"
-                        ? "Make it once. Save it here."
-                        : "Make yourself at home."}
+                        ? t(
+                            "Make it once. Save it here.",
+                            "Создайте рецепт. Сохраните здесь.",
+                          )
+                        : t("Make yourself at home.", "Настройте под себя.")}
             </h1>
             <p>
               {tab === "Journal"
-                ? "A little attention goes a long way."
+                ? t(
+                    "A little attention goes a long way.",
+                    "Немного внимания — заметный результат.",
+                  )
                 : tab === "Progress"
-                  ? "Your nutrition and daily check-ins, over time."
+                  ? t(
+                      "Your nutrition and daily check-ins, over time.",
+                      "Питание и ежедневные отметки в динамике.",
+                    )
                   : tab === "Menu"
-                    ? "A collection of quick recipes to come back to."
+                    ? t(
+                        "A collection of quick recipes to come back to.",
+                        "Коллекция быстрых рецептов на каждый день.",
+                      )
                     : tab === "Foods"
-                      ? "Find a product, check its label, and make it a regular."
+                      ? t(
+                          "Find a product, check its label, and make it a regular.",
+                          "Найдите продукт, проверьте этикетку и сохраните.",
+                        )
                       : tab === "Dishes"
-                        ? "Flexible recipes for the meals you come back to."
-                        : "Your preferences, security, and agent connection."}
+                        ? t(
+                            "Flexible recipes for the meals you come back to.",
+                            "Гибкие рецепты для любимых блюд.",
+                          )
+                        : t(
+                            "Your preferences, security, and agent connection.",
+                            "Настройки, безопасность и подключение агента.",
+                          )}
             </p>
           </div>
           {tab === "Journal" ? (
             <button className="primary" onClick={() => openLog()}>
-              ＋ Log food
+              {t("＋ Log food", "＋ Записать еду")}
             </button>
           ) : tab === "Foods" ? (
             <button className="primary" onClick={() => openProduct()}>
-              ＋ Custom food
+              {t("＋ Custom food", "＋ Свой продукт")}
             </button>
           ) : tab === "Dishes" ? (
             <button className="primary" onClick={() => openDish()}>
-              ＋ New dish
+              {t("＋ New dish", "＋ Новое блюдо")}
             </button>
           ) : null}
         </header>
         {error && (
           <div className="error" role="alert">
-            {error}
-            <button aria-label="Dismiss error" onClick={() => setError("")}>
+            {localizeError(error, language)}
+            <button
+              aria-label={t("Dismiss error", "Закрыть ошибку")}
+              onClick={() => setError("")}
+            >
               ×
             </button>
           </div>
         )}
         {notice && (
           <div className="notice" role="status">
-            {notice}
+            {noticeText}
           </div>
         )}
         {tab === "Journal" && (
           <>
             <div className="period-row">
-              <div className="segmented" aria-label="Journal period">
+              <div
+                className="segmented"
+                aria-label={t("Journal period", "Период дневника")}
+              >
                 {["Day", "Week", "Month", "Custom"].map((p) => (
                   <button
                     aria-pressed={period === p}
@@ -479,16 +559,16 @@ function SessionApp({
                     key={p}
                     onClick={() => selectPeriod(p)}
                   >
-                    {p}
+                    {label(p)}
                   </button>
                 ))}
               </div>
               <div className="date-range">
                 {period === "Custom" ? (
                   <>
-                    <Field label="From">
+                    <Field label={t("From", "С")}>
                       <input
-                        aria-label="From date"
+                        aria-label={t("From date", "Начало периода")}
                         type="date"
                         value={dates.start}
                         onChange={(e) =>
@@ -496,9 +576,9 @@ function SessionApp({
                         }
                       />
                     </Field>
-                    <Field label="Through">
+                    <Field label={t("Through", "По")}>
                       <input
-                        aria-label="Through date"
+                        aria-label={t("Through date", "Конец периода")}
                         type="date"
                         value={dates.end}
                         onChange={(e) =>
@@ -510,13 +590,16 @@ function SessionApp({
                 ) : (
                   <div className="date-navigation">
                     <button
-                      aria-label={`Previous ${period.toLowerCase()}`}
+                      aria-label={t(
+                        `Previous ${period.toLowerCase()}`,
+                        `Предыдущий период: ${label(period)}`,
+                      )}
                       onClick={() => movePeriod(-1)}
                     >
                       ‹
                     </button>
                     <input
-                      aria-label="Journal date"
+                      aria-label={t("Journal date", "Дата дневника")}
                       type="date"
                       value={dates.start}
                       onChange={(e) => {
@@ -525,7 +608,10 @@ function SessionApp({
                       }}
                     />
                     <button
-                      aria-label={`Next ${period.toLowerCase()}`}
+                      aria-label={t(
+                        `Next ${period.toLowerCase()}`,
+                        `Следующий период: ${label(period)}`,
+                      )}
                       onClick={() => movePeriod(1)}
                     >
                       ›
@@ -536,13 +622,13 @@ function SessionApp({
                   className="today-shortcut"
                   onClick={() => selectPeriod("Day", today())}
                 >
-                  Today
+                  {t("Today", "Сегодня")}
                 </button>
               </div>
             </div>
             <p className="journal-date-label" aria-live="polite">
               {dateLabel}
-              {period === "Week" ? " · Mon–Sun" : ""}
+              {period === "Week" ? t(" · Mon–Sun", " · пн–вс") : ""}
             </p>
             {stats && (
               <GoalsDashboard
@@ -557,31 +643,46 @@ function SessionApp({
                 ["calories", "protein", "carbs", "fat"].includes(k),
               ) && (
                 <p className="hint">
-                  Some labels are incomplete. Totals include known values only;
-                  missing values are never treated as zero.
+                  {t(
+                    "Some labels are incomplete. Totals include known values only; missing values are never treated as zero.",
+                    "Некоторые этикетки неполные. Итоги включают только известные значения; пропуски не считаются нулями.",
+                  )}
                 </p>
               )}
             <div className="journal-grid">
               <section className="panel">
                 <div className="section-heading">
-                  <h2>{period === "Day" ? "On the menu" : "Food journal"}</h2>
+                  <h2>
+                    {period === "Day"
+                      ? t("On the menu", "Что съедено")
+                      : t("Food journal", "Дневник питания")}
+                  </h2>
                   <span className="tag">
-                    {stats?.entries.length || 0} entries
+                    {t(
+                      `${stats?.entries.length || 0} entries`,
+                      `Записей: ${stats?.entries.length || 0}`,
+                    )}
                   </span>
                 </div>
                 {!stats ? (
-                  <p>Loading your journal…</p>
+                  <p>{t("Loading your journal…", "Загружаем дневник…")}</p>
                 ) : stats.entries.length === 0 ? (
                   <div className="empty">
                     <div className="empty-symbol">◷</div>
-                    <h3>A fresh page.</h3>
+                    <h3>{t("A fresh page.", "Чистая страница.")}</h3>
                     <p>
-                      Breakfast, a snack, or last night’s dinner.
+                      {t(
+                        "Breakfast, a snack, or last night’s dinner.",
+                        "Завтрак, перекус или вчерашний ужин.",
+                      )}
                       <br />
-                      Start with whatever’s on your mind.
+                      {t(
+                        "Start with whatever’s on your mind.",
+                        "Начните с любого приёма пищи.",
+                      )}
                     </p>
                     <button className="primary" onClick={() => openLog()}>
-                      Log your first food
+                      {t("Log your first food", "Записать первую еду")}
                     </button>
                   </div>
                 ) : (
@@ -609,34 +710,45 @@ function SessionApp({
               </section>
               <aside
                 className="right-column"
-                aria-label="Nutrition details and agent connection"
+                aria-label={t(
+                  "Nutrition details and agent connection",
+                  "Нутриенты и подключение агента",
+                )}
               >
                 <section className="panel soft">
-                  <span className="eyebrow">SMALL DETAILS, BIG PICTURE</span>
-                  <h2>Beyond calories</h2>
+                  <span className="eyebrow">
+                    {t(
+                      "SMALL DETAILS, BIG PICTURE",
+                      "ДЕТАЛИ СКЛАДЫВАЮТСЯ В КАРТИНУ",
+                    )}
+                  </span>
+                  <h2>{t("Beyond calories", "Не только калории")}</h2>
                   <dl className="nutrient-list">
                     {(
                       ["sugar", "fiber", "saturatedFat", "sodium"] as const
                     ).map((k) => (
                       <div key={k}>
-                        <dt>{nutrientLabels[k].split(" (")[0]}</dt>
+                        <dt>{label(nutrientLabels[k]).split(" (")[0]}</dt>
                         <dd>
                           {num(stats?.totals[k])}{" "}
-                          <small>{k === "sodium" ? "mg" : "g"}</small>
+                          <small>{label(k === "sodium" ? "mg" : "g")}</small>
                           {stats?.missingNutrients.includes(k) ? " *" : ""}
                         </dd>
                       </div>
                     ))}
                   </dl>
                   <small>
-                    * Incomplete labels. — means unknown or no data.
+                    {t(
+                      "* Incomplete labels. — means unknown or no data.",
+                      "* Неполные этикетки. — означает, что данных нет.",
+                    )}
                   </small>
                   <details>
-                    <summary>All nutrients</summary>
+                    <summary>{t("All nutrients", "Все нутриенты")}</summary>
                     <dl className="nutrient-list">
                       {nutrientKeys.map((k) => (
                         <div key={k}>
-                          <dt>{nutrientLabels[k]}</dt>
+                          <dt>{label(nutrientLabels[k])}</dt>
                           <dd>
                             {num(stats?.totals[k])}
                             {stats?.missingNutrients.includes(k) ? " *" : ""}
@@ -648,16 +760,20 @@ function SessionApp({
                 </section>
                 <section className="agent-card">
                   <span>✳</span>
-                  <h3>A little help, on hand.</h3>
+                  <h3>
+                    {t("A little help, on hand.", "Помощь всегда рядом.")}
+                  </h3>
                   <p>
-                    Tell your agent what you ate. It can find your favorites and
-                    take care of the numbers.
+                    {t(
+                      "Tell your agent what you ate. It can find your favorites and take care of the numbers.",
+                      "Расскажите агенту, что съели. Он найдёт любимые продукты и посчитает всё за вас.",
+                    )}
                   </p>
                   <button
                     className="text-button"
                     onClick={() => setTab("Settings")}
                   >
-                    Connect your agent ↗
+                    {t("Connect your agent ↗", "Подключить агента ↗")}
                   </button>
                 </section>
               </aside>
@@ -675,7 +791,11 @@ function SessionApp({
           />
         )}
         {tab === "Menu" && (
-          <Suspense fallback={<p role="status">Loading menu…</p>}>
+          <Suspense
+            fallback={
+              <p role="status">{t("Loading menu…", "Загружаем меню…")}</p>
+            }
+          >
             <Menu userId={user.id} />
           </Suspense>
         )}
@@ -693,26 +813,29 @@ function SessionApp({
               }}
             >
               <label className="sr-only" htmlFor="food-search">
-                Search products
+                {t("Search products", "Поиск продуктов")}
               </label>
               <input
                 id="food-search"
-                placeholder="Try a food, brand, or barcode…"
+                placeholder={t(
+                  "Try a food, brand, or barcode…",
+                  "Название, бренд или штрихкод…",
+                )}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 required
               />
-              <Submit busy={busy}>Search foods</Submit>
+              <Submit busy={busy}>{t("Search foods", "Найти продукты")}</Submit>
             </form>
             {searchResult && (
               <section className="panel search-results">
                 <div className="section-heading">
-                  <h2>Search results</h2>
+                  <h2>{t("Search results", "Результаты поиска")}</h2>
                   <button onClick={() => setSearchResult(undefined)}>
-                    Clear
+                    {t("Clear", "Очистить")}
                   </button>
                 </div>
-                <p>{searchResult.reason}</p>
+                <p>{localizeError(searchResult.reason, language)}</p>
                 {searchResult.status === "matched" && (
                   <button
                     disabled={busy}
@@ -727,12 +850,12 @@ function SessionApp({
                       )
                     }
                   >
-                    Search for other matches
+                    {t("Search for other matches", "Найти другие варианты")}
                   </button>
                 )}
                 {searchResult.warnings.map((w) => (
                   <p className="hint" key={w}>
-                    {w}
+                    {localizeError(w, language)}
                   </p>
                 ))}
                 {searchResult.candidates.map((p) => (
@@ -740,11 +863,17 @@ function SessionApp({
                     <div>
                       <strong>{p.name}</strong>
                       {p.id === searchResult.preferredProductId && (
-                        <small>Preferred saved food</small>
+                        <small>
+                          {t(
+                            "Preferred saved food",
+                            "Предпочтительный сохранённый продукт",
+                          )}
+                        </small>
                       )}
                       <small>
-                        {p.brand || "Unbranded"} · {num(p.nutrients.calories)}{" "}
-                        kcal / 100g · {p.source}
+                        {p.brand || t("Unbranded", "Без бренда")} ·{" "}
+                        {num(p.nutrients.calories)}{" "}
+                        {t("kcal / 100g", "ккал / 100 г")} · {p.source}
                       </small>
                     </div>
                     <button
@@ -767,43 +896,67 @@ function SessionApp({
                         })
                       }
                     >
-                      Choose & review
+                      {t("Choose & review", "Выбрать и проверить")}
                     </button>
                   </div>
                 ))}
               </section>
             )}
             <div className="section-heading">
-              <h2>Your saved foods</h2>
-              <span>{products.length} products</span>
+              <h2>{t("Your saved foods", "Сохранённые продукты")}</h2>
+              <span>
+                {t(
+                  `${products.length} products`,
+                  `Продуктов: ${products.length}`,
+                )}
+              </span>
             </div>
             <div className="cards">
               {products.map((p) => (
                 <article className="panel food-card" key={p.id}>
                   <span className="tag">
                     {p.source === "custom"
-                      ? "YOUR LABEL"
+                      ? t("YOUR LABEL", "ВАША ЭТИКЕТКА")
                       : p.source.toUpperCase()}
                   </span>
                   <h3>{p.name}</h3>
-                  <p>{p.brand || "Unbranded"}</p>
+                  <p>{p.brand || t("Unbranded", "Без бренда")}</p>
                   <strong>
-                    {num(p.nutrients.calories)} <small>kcal / 100g</small>
+                    {num(p.nutrients.calories)}{" "}
+                    <small>{t("kcal / 100g", "ккал / 100 г")}</small>
                   </strong>
                   <div className="mini-macros">
-                    <span>P {num(p.nutrients.protein)}g</span>
-                    <span>C {num(p.nutrients.carbs)}g</span>
-                    <span>F {num(p.nutrients.fat)}g</span>
+                    <span>
+                      {t("P", "Б")} {num(p.nutrients.protein)}
+                      {label("g")}
+                    </span>
+                    <span>
+                      {t("C", "У")} {num(p.nutrients.carbs)}
+                      {label("g")}
+                    </span>
+                    <span>
+                      {t("F", "Ж")} {num(p.nutrients.fat)}
+                      {label("g")}
+                    </span>
                   </div>
                   <div className="card-actions">
                     <button className="primary" onClick={() => openLog(p)}>
-                      Log food
+                      {t("Log food", "Записать еду")}
                     </button>
-                    <button onClick={() => openProduct(p)}>Edit</button>
+                    <button onClick={() => openProduct(p)}>
+                      {t("Edit", "Изменить")}
+                    </button>
                     <button
-                      aria-label={`Delete ${p.name}`}
+                      aria-label={t(`Delete ${p.name}`, `Удалить ${p.name}`)}
                       onClick={() => {
-                        if (confirm(`Delete ${p.name}? Past logs are kept.`))
+                        if (
+                          confirm(
+                            t(
+                              `Delete ${p.name}? Past logs are kept.`,
+                              `Удалить ${p.name}? Прошлые записи сохранятся.`,
+                            ),
+                          )
+                        )
                           void perform(async () => {
                             await action("delete_product", { id: p.id });
                             done("Product deleted.");
@@ -818,16 +971,25 @@ function SessionApp({
             </div>
             {products.length === 0 && (
               <div className="empty panel">
-                <h3>Your favorites belong here.</h3>
+                <h3>
+                  {t(
+                    "Your favorites belong here.",
+                    "Место для любимых продуктов.",
+                  )}
+                </h3>
                 <p>
-                  Search US products above, or add a food from its nutrition
-                  label.
+                  {t(
+                    "Search US products above, or add a food from its nutrition label.",
+                    "Найдите продукт в базах США или добавьте его по этикетке.",
+                  )}
                 </p>
-                <button onClick={() => openProduct()}>Add custom food</button>
+                <button onClick={() => openProduct()}>
+                  {t("Add custom food", "Добавить свой продукт")}
+                </button>
               </div>
             )}
             <p className="attribution">
-              Product data from{" "}
+              {t("Product data from", "Данные о продуктах:")}{" "}
               <a
                 href="https://fdc.nal.usda.gov"
                 target="_blank"
@@ -835,7 +997,7 @@ function SessionApp({
               >
                 USDA FoodData Central
               </a>{" "}
-              and{" "}
+              {t("and", "и")}{" "}
               <a
                 href="https://world.openfoodfacts.org"
                 target="_blank"
@@ -851,7 +1013,10 @@ function SessionApp({
               >
                 ODbL
               </a>
-              . Verify imported values against the label.
+              {t(
+                ". Verify imported values against the label.",
+                ". Проверяйте импортированные значения по этикетке.",
+              )}
             </p>
           </>
         )}
@@ -860,24 +1025,39 @@ function SessionApp({
             <div className="cards">
               {dishes.map((d) => (
                 <article className="panel food-card" key={d.id}>
-                  <span className="tag">YOUR RECIPE</span>
+                  <span className="tag">{t("YOUR RECIPE", "ВАШ РЕЦЕПТ")}</span>
                   <h3>{d.name}</h3>
                   <p>
-                    {d.ingredients.length} ingredients · {d.servings} servings
+                    {t(
+                      `${d.ingredients.length} ingredients · ${num(d.servings)} servings`,
+                      `Ингредиентов: ${d.ingredients.length} · Порций: ${num(d.servings)}`,
+                    )}
                   </p>
                   <p className="muted">
                     {d.notes ||
-                      "Adjust ingredients for each meal without changing your recipe."}
+                      t(
+                        "Adjust ingredients for each meal without changing your recipe.",
+                        "Меняйте ингредиенты для отдельного приёма пищи, сохраняя рецепт.",
+                      )}
                   </p>
                   <div className="card-actions">
                     <button className="primary" onClick={() => openLog(d)}>
-                      Log dish
+                      {t("Log dish", "Записать блюдо")}
                     </button>
-                    <button onClick={() => openDish(d)}>Edit</button>
+                    <button onClick={() => openDish(d)}>
+                      {t("Edit", "Изменить")}
+                    </button>
                     <button
-                      aria-label={`Delete ${d.name}`}
+                      aria-label={t(`Delete ${d.name}`, `Удалить ${d.name}`)}
                       onClick={() => {
-                        if (confirm(`Delete ${d.name}? Past logs are kept.`))
+                        if (
+                          confirm(
+                            t(
+                              `Delete ${d.name}? Past logs are kept.`,
+                              `Удалить ${d.name}? Прошлые записи сохранятся.`,
+                            ),
+                          )
+                        )
                           void perform(async () => {
                             await action("delete_dish", { id: d.id });
                             done("Dish deleted.");
@@ -893,13 +1073,20 @@ function SessionApp({
             {dishes.length === 0 && (
               <div className="empty panel">
                 <div className="empty-symbol">▤</div>
-                <h3>Your go-to meal, ready to go.</h3>
+                <h3>
+                  {t(
+                    "Your go-to meal, ready to go.",
+                    "Любимое блюдо всегда под рукой.",
+                  )}
+                </h3>
                 <p>
-                  Combine saved foods, set the recipe yield, and let us do the
-                  math.
+                  {t(
+                    "Combine saved foods, set the recipe yield, and let us do the math.",
+                    "Объедините сохранённые продукты, задайте число порций — мы всё посчитаем.",
+                  )}
                 </p>
                 <button className="primary" onClick={() => openDish()}>
-                  Create a dish
+                  {t("Create a dish", "Создать блюдо")}
                 </button>
               </div>
             )}
@@ -923,13 +1110,13 @@ function SessionApp({
           title={
             modal === "product"
               ? editProduct
-                ? "Edit food"
-                : "Add a custom food"
+                ? t("Edit food", "Изменить продукт")
+                : t("Add a custom food", "Добавить свой продукт")
               : modal === "dish"
                 ? editDish
-                  ? "Edit dish"
-                  : "Create a dish"
-                : "Log something good"
+                  ? t("Edit dish", "Изменить блюдо")
+                  : t("Create a dish", "Создать блюдо")
+                : t("Log something good", "Записать еду")
           }
           onClose={() => {
             if (!busy) {
@@ -939,11 +1126,11 @@ function SessionApp({
           }}
         >
           <p className="error" role="alert" hidden={!error}>
-            {error}
+            {localizeError(error, language)}
           </p>
           {notice && (
             <p className="notice" role="status">
-              {notice}
+              {noticeText}
             </p>
           )}
           {modal === "product" && (
@@ -977,9 +1164,7 @@ function SessionApp({
                   const result = await action<{
                     perServing: Nutrients;
                   }>("preview_dish", { dish: d });
-                  setNotice(
-                    `Per serving: ${num(result.perServing.calories)} kcal · Protein ${num(result.perServing.protein)}g · Carbs ${num(result.perServing.carbs)}g · Fat ${num(result.perServing.fat)}g.`,
-                  );
+                  setNotice({ perServing: result.perServing });
                 })
               }
             />
@@ -1019,6 +1204,7 @@ function ProductForm({
   busy: boolean;
   onSave: (p: ProductInput) => void;
 }) {
+  const { t, label } = useAppI18n();
   const [draft, setDraft] = useState<ProductInput>(() =>
     product
       ? (({ id: _id, updatedAt: _at, ...rest }) => rest)(product)
@@ -1042,12 +1228,14 @@ function ProductForm({
     >
       {product && (
         <p className="form-note">
-          Saving corrections recalculates linked journal entries, including
-          dishes using this food. Older entries and manual overrides stay fixed.
+          {t(
+            "Saving corrections recalculates linked journal entries, including dishes using this food. Older entries and manual overrides stay fixed.",
+            "Изменения пересчитают связанные записи дневника, включая блюда с этим продуктом. Старые записи и ручные корректировки сохранятся.",
+          )}
         </p>
       )}
       <div className="row">
-        <Field label="Food name">
+        <Field label={t("Food name", "Название продукта")}>
           <input
             autoFocus
             required
@@ -1055,26 +1243,35 @@ function ProductForm({
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           />
         </Field>
-        <Field label="Brand">
+        <Field label={t("Brand", "Бренд")}>
           <input
             value={draft.brand}
             onChange={(e) => setDraft({ ...draft, brand: e.target.value })}
           />
         </Field>
       </div>
-      <Field label="Barcode (optional)">
+      <Field label={t("Barcode (optional)", "Штрихкод (необязательно)")}>
         <input
           value={draft.barcode || ""}
           onChange={(e) => setDraft({ ...draft, barcode: e.target.value })}
         />
       </Field>
       <div className="form-note">
-        <strong>Copy what’s on the label.</strong>
+        <strong>
+          {t("Copy what’s on the label.", "Перепишите данные с этикетки.")}
+        </strong>
         <p>
-          Enter the values for the weight below. We’ll convert them to 100g.
-          Leave unknown nutrients blank.
+          {t(
+            "Enter the values for the weight below. We’ll convert them to 100g. Leave unknown nutrients blank.",
+            "Введите значения для указанного ниже веса. Мы пересчитаем на 100 г. Неизвестные значения оставьте пустыми.",
+          )}
         </p>
-        <Field label="Label values are for this many grams">
+        <Field
+          label={t(
+            "Label values are for this many grams",
+            "Вес порции на этикетке, г",
+          )}
+        >
           <input
             required
             type="number"
@@ -1087,7 +1284,7 @@ function ProductForm({
       </div>
       <div className="nutrient-fields">
         {nutrientKeys.map((k) => (
-          <Field label={nutrientLabels[k]} key={k}>
+          <Field label={label(nutrientLabels[k])} key={k}>
             <input
               type="number"
               required={k === "calories"}
@@ -1104,14 +1301,16 @@ function ProductForm({
           </Field>
         ))}
       </div>
-      <h3>Saved portions</h3>
+      <h3>{t("Saved portions", "Сохранённые порции")}</h3>
       <p className="muted">
-        Grams in one serving, piece, or US measure. A “medium apple” can be an
-        approximate portion; use its real weight when convenient.
+        {t(
+          "Grams in one serving, piece, or US measure. A “medium apple” can be an approximate portion; use its real weight when convenient.",
+          "Вес одной порции, штуки или американской меры в граммах. «Среднее яблоко» — приблизительная порция; по возможности указывайте фактический вес.",
+        )}
       </p>
       {draft.portions.map((p, i) => (
         <div className="portion-row" key={i}>
-          <Field label="Portion label">
+          <Field label={t("Portion label", "Название порции")}>
             <input
               required
               value={p.label}
@@ -1125,7 +1324,7 @@ function ProductForm({
               }
             />
           </Field>
-          <Field label="Portion unit">
+          <Field label={t("Portion unit", "Единица порции")}>
             <select
               value={p.unit}
               onChange={(e) =>
@@ -1142,11 +1341,13 @@ function ProductForm({
               {units
                 .filter((u) => !["g", "kg", "oz", "lb"].includes(u))
                 .map((u) => (
-                  <option key={u}>{u}</option>
+                  <option key={u} value={u}>
+                    {label(u)}
+                  </option>
                 ))}
             </select>
           </Field>
-          <Field label="Grams per unit">
+          <Field label={t("Grams per unit", "Граммов в единице")}>
             <input
               required
               type="number"
@@ -1165,7 +1366,7 @@ function ProductForm({
           </Field>
           <button
             type="button"
-            aria-label="Remove portion"
+            aria-label={t("Remove portion", "Удалить порцию")}
             onClick={() =>
               setDraft({
                 ...draft,
@@ -1189,16 +1390,16 @@ function ProductForm({
           })
         }
       >
-        ＋ Add portion
+        {t("＋ Add portion", "＋ Добавить порцию")}
       </button>
-      <Field label="Notes">
+      <Field label={t("Notes", "Заметки")}>
         <textarea
           value={draft.notes}
           onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
         />
       </Field>
       <footer className="form-footer">
-        <Submit busy={busy}>Save food</Submit>
+        <Submit busy={busy}>{t("Save food", "Сохранить продукт")}</Submit>
       </footer>
     </form>
   );
@@ -1213,12 +1414,15 @@ function IngredientFields({
   products: Product[];
   onChange: (items: DishInput["ingredients"]) => void;
 }) {
+  const { t, label } = useAppI18n();
   return (
     <>
       {ingredients.map((i, index) => (
         <div className="ingredient" key={index}>
           <div className="row">
-            <Field label={`Ingredient ${index + 1}`}>
+            <Field
+              label={t(`Ingredient ${index + 1}`, `Ингредиент ${index + 1}`)}
+            >
               <select
                 required
                 value={i.productId}
@@ -1230,7 +1434,9 @@ function IngredientFields({
                   )
                 }
               >
-                <option value="">Choose saved food</option>
+                <option value="">
+                  {t("Choose saved food", "Выберите сохранённый продукт")}
+                </option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} {p.brand && `· ${p.brand}`}
@@ -1240,7 +1446,10 @@ function IngredientFields({
             </Field>
             <button
               type="button"
-              aria-label={`Remove ingredient ${index + 1}`}
+              aria-label={t(
+                `Remove ingredient ${index + 1}`,
+                `Удалить ингредиент ${index + 1}`,
+              )}
               onClick={() =>
                 onChange(ingredients.filter((_, n) => n !== index))
               }
@@ -1270,7 +1479,7 @@ function IngredientFields({
           ])
         }
       >
-        ＋ Add ingredient
+        {t("＋ Add ingredient", "＋ Добавить ингредиент")}
       </button>
     </>
   );
@@ -1288,6 +1497,7 @@ function DishForm({
   onSave: (d: DishInput) => void;
   onPreview: (d: DishInput) => void;
 }) {
+  const { t, label } = useAppI18n();
   const [draft, setDraft] = useState<DishInput>(
     dish
       ? (({ id: _id, updatedAt: _at, ...rest }) => rest)(dish)
@@ -1302,12 +1512,13 @@ function DishForm({
     >
       {dish && (
         <p className="form-note">
-          Saving corrections recalculates linked journal entries. For a
-          different recipe or batch, create a new dish instead. Older entries
-          and manual overrides stay fixed.
+          {t(
+            "Saving corrections recalculates linked journal entries. For a different recipe or batch, create a new dish instead. Older entries and manual overrides stay fixed.",
+            "Изменения пересчитают связанные записи дневника. Для другого рецепта или партии создайте новое блюдо. Старые записи и ручные корректировки сохранятся.",
+          )}
         </p>
       )}
-      <Field label="Dish name">
+      <Field label={t("Dish name", "Название блюда")}>
         <input
           autoFocus
           required
@@ -1316,7 +1527,7 @@ function DishForm({
         />
       </Field>
       <div className="row">
-        <Field label="Recipe makes (servings)">
+        <Field label={t("Recipe makes (servings)", "Выход рецепта (порций)")}>
           <input
             required
             type="number"
@@ -1328,7 +1539,12 @@ function DishForm({
             }
           />
         </Field>
-        <Field label="Cooked weight (g, optional)">
+        <Field
+          label={t(
+            "Cooked weight (g, optional)",
+            "Вес готового блюда (г, необязательно)",
+          )}
+        >
           <input
             type="number"
             min="0.01"
@@ -1345,16 +1561,21 @@ function DishForm({
           />
         </Field>
       </div>
-      <h3>What goes in</h3>
+      <h3>{t("What goes in", "Ингредиенты")}</h3>
       {!products.length && (
-        <p className="hint">Save some foods in the Foods tab first.</p>
+        <p className="hint">
+          {t(
+            "Save some foods in the Foods tab first.",
+            "Сначала сохраните продукты на вкладке «Продукты».",
+          )}
+        </p>
       )}
       <IngredientFields
         ingredients={draft.ingredients}
         products={products}
         onChange={(ingredients) => setDraft({ ...draft, ingredients })}
       />
-      <Field label="Notes">
+      <Field label={t("Notes", "Заметки")}>
         <textarea
           value={draft.notes}
           onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
@@ -1366,9 +1587,11 @@ function DishForm({
           disabled={busy || !draft.ingredients.length}
           onClick={() => onPreview(draft)}
         >
-          Calculate nutrition
+          {t("Calculate nutrition", "Рассчитать пищевую ценность")}
         </button>
-        <Submit busy={busy || !draft.ingredients.length}>Save dish</Submit>
+        <Submit busy={busy || !draft.ingredients.length}>
+          {t("Save dish", "Сохранить блюдо")}
+        </Submit>
       </footer>
     </form>
   );
@@ -1390,6 +1613,7 @@ function LogForm({
   busy: boolean;
   onSave: (input: unknown) => void;
 }) {
+  const { t, num, label } = useAppI18n();
   const [id, setId] = useState(target?.id || "");
   const [quantity, setQuantity] = useState<Quantity>({
     amount:
@@ -1420,7 +1644,7 @@ function LogForm({
   }
   return (
     <form onSubmit={submit}>
-      <Field label="Food or dish">
+      <Field label={t("Food or dish", "Продукт или блюдо")}>
         <select
           autoFocus
           required
@@ -1435,15 +1659,17 @@ function LogForm({
             });
           }}
         >
-          <option value="">Choose from your saved collection</option>
-          <optgroup label="Foods">
+          <option value="">
+            {t("Choose from your saved collection", "Выберите из сохранённого")}
+          </option>
+          <optgroup label={label("Foods")}>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} {p.brand && `· ${p.brand}`}
               </option>
             ))}
           </optgroup>
-          <optgroup label="Dishes">
+          <optgroup label={label("Dishes")}>
             {dishes.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -1454,8 +1680,10 @@ function LogForm({
       </Field>
       {!products.length && (
         <p className="hint">
-          Add a product in Foods first. Search by name, brand, or barcode, or
-          copy a label into a custom food.
+          {t(
+            "Add a product in Foods first. Search by name, brand, or barcode, or copy a label into a custom food.",
+            "Сначала добавьте продукт на вкладке «Продукты»: найдите по названию, бренду или штрихкоду либо перепишите этикетку.",
+          )}
         </p>
       )}
       <QuantityFields
@@ -1466,12 +1694,14 @@ function LogForm({
       />
       {dish && (
         <p className="hint">
-          This recipe makes {dish.servings} servings. Logging 1 serving uses{" "}
-          {num(100 / dish.servings)}% of its ingredients.
+          {t(
+            `This recipe makes ${num(dish.servings)} servings. Logging 1 serving uses ${num(100 / dish.servings)}% of its ingredients.`,
+            `Рецепт рассчитан на ${num(dish.servings)} порций. Одна порция использует ${num(100 / dish.servings)}% ингредиентов.`,
+          )}
         </p>
       )}
       <div className="row">
-        <Field label="Date eaten">
+        <Field label={t("Date eaten", "Дата приёма пищи")}>
           <input
             required
             type="date"
@@ -1479,20 +1709,26 @@ function LogForm({
             onChange={(e) => setDate(e.target.value)}
           />
         </Field>
-        <Field label="Meal">
+        <Field label={t("Meal", "Приём пищи")}>
           <select value={meal} onChange={(e) => setMeal(e.target.value)}>
             {["breakfast", "lunch", "dinner", "snack"].map((m) => (
-              <option key={m}>{m}</option>
+              <option key={m} value={m}>
+                {label(m)}
+              </option>
             ))}
           </select>
         </Field>
       </div>
       {dish && (
         <details>
-          <summary>Different recipe this time?</summary>
+          <summary>
+            {t("Different recipe this time?", "В этот раз другой рецепт?")}
+          </summary>
           <p>
-            Adjust the full recipe’s ingredients for this log. The saved
-            template stays the same; the serving yield remains {dish.servings}.
+            {t(
+              `Adjust the full recipe’s ingredients for this log. The saved template stays the same; the serving yield remains ${num(dish.servings)}.`,
+              `Измените ингредиенты всего рецепта для этой записи. Сохранённый рецепт не изменится; выход останется ${num(dish.servings)} порций.`,
+            )}
           </p>
           <button
             type="button"
@@ -1501,7 +1737,7 @@ function LogForm({
               setQuantity({ amount: 1, unit: "serving" });
             }}
           >
-            Customize this meal
+            {t("Customize this meal", "Изменить этот приём пищи")}
           </button>
           {overrides && (
             <IngredientFields
@@ -1512,15 +1748,20 @@ function LogForm({
           )}
         </details>
       )}
-      <Field label="Notes (optional)">
+      <Field label={t("Notes (optional)", "Заметки (необязательно)")}>
         <textarea
-          placeholder="Anything you’d like to remember"
+          placeholder={t(
+            "Anything you’d like to remember",
+            "Что вы хотите запомнить",
+          )}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
       </Field>
       <footer className="form-footer">
-        <Submit busy={busy || !id}>Add to journal</Submit>
+        <Submit busy={busy || !id}>
+          {t("Add to journal", "Добавить в дневник")}
+        </Submit>
       </footer>
     </form>
   );
@@ -1534,6 +1775,7 @@ function EntryRow({
   onDelete: () => Promise<void>;
   onEdit: (changes: EntryUpdate) => Promise<Entry>;
 }) {
+  const { t, language, locale, num, label } = useAppI18n();
   const [opened, setOpened] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1563,7 +1805,12 @@ function EntryRow({
     if (
       editing &&
       JSON.stringify(draft) !== JSON.stringify(entry) &&
-      !confirm("Discard your unsaved entry changes?")
+      !confirm(
+        t(
+          "Discard your unsaved entry changes?",
+          "Отменить несохранённые изменения записи?",
+        ),
+      )
     )
       return;
     setOpened(false);
@@ -1573,7 +1820,10 @@ function EntryRow({
       <article className="entry">
         <button
           className="entry-open"
-          aria-label={`View entry: ${entry.name}`}
+          aria-label={t(
+            `View entry: ${entry.name}`,
+            `Открыть запись: ${entry.name}`,
+          )}
           onClick={() => {
             setDraft(structuredClone(entry));
             setComponentAmount(entry.amount);
@@ -1592,53 +1842,73 @@ function EntryRow({
           <span className="entry-content">
             <strong>{entry.name}</strong>
             <small>
-              {entry.amount} {entry.unit} · {entry.meal} · {entry.date}
+              {num(entry.amount)} {label(entry.unit)} · {label(entry.meal)} ·{" "}
+              {DateTime.fromISO(entry.date)
+                .setLocale(locale)
+                .toLocaleString(DateTime.DATE_MED)}
             </small>
             {entry.notes && <small>{entry.notes}</small>}
-            <small>View details &amp; edit →</small>
+            <small>
+              {t("View details &amp; edit →", "Подробности и редактирование →")}
+            </small>
           </span>
           <span className="entry-energy">
             <strong>{num(entry.nutrients.calories)}</strong>
-            <small>kcal</small>
+            <small>{t("kcal", "ккал")}</small>
           </span>
         </button>
       </article>
       {opened && (
         <Modal
-          title={editing ? "Edit journal entry" : draft.name}
+          title={
+            editing
+              ? t("Edit journal entry", "Изменить запись дневника")
+              : draft.name
+          }
           onClose={close}
         >
           {error && (
             <p className="error" role="alert">
-              {error}
+              {localizeError(error, language)}
             </p>
           )}
           {!editing ? (
             <>
               <p>
-                {draft.amount} {draft.unit} · {draft.meal} · {draft.date}
+                {num(draft.amount)} {label(draft.unit)} · {label(draft.meal)} ·{" "}
+                {DateTime.fromISO(draft.date)
+                  .setLocale(locale)
+                  .toLocaleString(DateTime.DATE_MED)}
               </p>
               {draft.notes && <p>{draft.notes}</p>}
               <p className="muted">
                 {draft.autoUpdate
-                  ? "Automatically updates when its saved food or recipe changes."
-                  : "Fixed values: saved food and recipe edits do not change this entry."}
+                  ? t(
+                      "Automatically updates when its saved food or recipe changes.",
+                      "Автоматически обновляется при изменении сохранённого продукта или рецепта.",
+                    )
+                  : t(
+                      "Fixed values: saved food and recipe edits do not change this entry.",
+                      "Фиксированные значения: изменения продуктов и рецептов не влияют на эту запись.",
+                    )}
               </p>
-              <h3>Entry nutrition</h3>
+              <h3>{t("Entry nutrition", "Пищевая ценность записи")}</h3>
               <dl className="nutrient-list">
                 {nutrientKeys.map((k) => (
                   <div key={k}>
-                    <dt>{nutrientLabels[k]}</dt>
+                    <dt>{label(nutrientLabels[k])}</dt>
                     <dd>{num(draft.nutrients[k])}</dd>
                   </div>
                 ))}
               </dl>
-              <h3>Components</h3>
+              <h3>{t("Components", "Компоненты")}</h3>
               {draft.items.map((item, i) => (
                 <div className="ingredient" key={i}>
                   <strong>{item.name}</strong>
                   <p>
-                    {num(item.grams)} g · {num(item.nutrients.calories)} kcal
+                    {num(item.grams)} {label("g")} ·{" "}
+                    {num(item.nutrients.calories)}
+                    {t("kcal", "ккал")}
                   </p>
                 </div>
               ))}
@@ -1647,7 +1917,14 @@ function EntryRow({
                   className="danger"
                   disabled={busy}
                   onClick={async () => {
-                    if (!confirm(`Delete ${draft.name} from your journal?`))
+                    if (
+                      !confirm(
+                        t(
+                          `Delete ${draft.name} from your journal?`,
+                          `Удалить ${draft.name} из дневника?`,
+                        ),
+                      )
+                    )
                       return;
                     setBusy(true);
                     setError("");
@@ -1665,14 +1942,14 @@ function EntryRow({
                     }
                   }}
                 >
-                  Delete entry
+                  {t("Delete entry", "Удалить запись")}
                 </button>
                 <button
                   className="primary"
                   disabled={busy}
                   onClick={() => setEditing(true)}
                 >
-                  Edit entry
+                  {t("Edit entry", "Изменить запись")}
                 </button>
               </div>
             </>
@@ -1710,17 +1987,19 @@ function EntryRow({
               <fieldset disabled={busy} className="entry-fields">
                 {draft.autoUpdate && (
                   <p className="form-note">
-                    Changing the name, amount or components fixes this entry’s
-                    values and stops automatic updates. Date, meal and notes
-                    alone keep it linked.
+                    {t(
+                      "Changing the name, amount or components fixes this entry’s values and stops automatic updates. Date, meal and notes alone keep it linked.",
+                      "Изменение названия, количества или компонентов фиксирует значения и отключает автообновление. Изменение только даты, приёма пищи или заметок сохраняет связь.",
+                    )}
                   </p>
                 )}
                 <p className="form-note">
-                  Edits apply only to this entry. Nutrition values below are
-                  totals for each component, not per 100g. Blank means unknown.
-                  Entry totals are calculated from components.
+                  {t(
+                    "Edits apply only to this entry. Nutrition values below are totals for each component, not per 100g. Blank means unknown. Entry totals are calculated from components.",
+                    "Изменения относятся только к этой записи. Ниже указаны полные значения для каждого компонента, а не на 100 г. Пустое поле означает неизвестное значение. Итог записи складывается из компонентов.",
+                  )}
                 </p>
-                <Field label="Entry name">
+                <Field label={t("Entry name", "Название записи")}>
                   <input
                     required
                     maxLength={200}
@@ -1731,7 +2010,7 @@ function EntryRow({
                   />
                 </Field>
                 <div className="row">
-                  <Field label="Entry date">
+                  <Field label={t("Entry date", "Дата записи")}>
                     <input
                       type="date"
                       required
@@ -1741,7 +2020,7 @@ function EntryRow({
                       }
                     />
                   </Field>
-                  <Field label="Entry meal">
+                  <Field label={t("Entry meal", "Приём пищи записи")}>
                     <select
                       value={draft.meal}
                       onChange={(e) =>
@@ -1749,13 +2028,15 @@ function EntryRow({
                       }
                     >
                       {["breakfast", "lunch", "dinner", "snack"].map((m) => (
-                        <option key={m}>{m}</option>
+                        <option key={m} value={m}>
+                          {label(m)}
+                        </option>
                       ))}
                     </select>
                   </Field>
                 </div>
                 <div className="row">
-                  <Field label="Entry amount">
+                  <Field label={t("Entry amount", "Количество в записи")}>
                     <input
                       type="number"
                       required
@@ -1768,7 +2049,7 @@ function EntryRow({
                       }
                     />
                   </Field>
-                  <Field label="Entry unit">
+                  <Field label={t("Entry unit", "Единица записи")}>
                     <select
                       value={draft.unit}
                       onChange={(e) =>
@@ -1776,16 +2057,18 @@ function EntryRow({
                       }
                     >
                       {units.map((u) => (
-                        <option key={u}>{u}</option>
+                        <option key={u} value={u}>
+                          {label(u)}
+                        </option>
                       ))}
                     </select>
                   </Field>
                 </div>
                 <p className="muted">
-                  Amount and unit describe the entry. To resize the same
-                  portion, scale from {num(componentAmount)} to{" "}
-                  {num(draft.amount)}; otherwise edit the component totals
-                  directly. Changing units does not convert nutrition.
+                  {t(
+                    `Amount and unit describe the entry. To resize the same portion, scale from ${num(componentAmount)} to ${num(draft.amount)}; otherwise edit the component totals directly. Changing units does not convert nutrition.`,
+                    `Количество и единица описывают запись. Чтобы изменить размер той же порции, пересчитайте с ${num(componentAmount)} на ${num(draft.amount)}; иначе измените значения компонентов вручную. Смена единиц не пересчитывает пищевую ценность.`,
+                  )}
                 </p>
                 <button
                   type="button"
@@ -1808,9 +2091,12 @@ function EntryRow({
                     setComponentAmount(draft.amount);
                   }}
                 >
-                  Scale components to this amount
+                  {t(
+                    "Scale components to this amount",
+                    "Пересчитать компоненты на это количество",
+                  )}
                 </button>
-                <Field label="Entry notes">
+                <Field label={t("Entry notes", "Заметки к записи")}>
                   <textarea
                     maxLength={2000}
                     value={draft.notes}
@@ -1819,11 +2105,13 @@ function EntryRow({
                     }
                   />
                 </Field>
-                <h3>Components</h3>
+                <h3>{t("Components", "Компоненты")}</h3>
                 {draft.items.map((item, i) => (
                   <fieldset className="ingredient" key={i}>
-                    <legend>Component {i + 1}</legend>
-                    <Field label="Component name">
+                    <legend>
+                      {t(`Component ${i + 1}`, `Компонент ${i + 1}`)}
+                    </legend>
+                    <Field label={t("Component name", "Название компонента")}>
                       <input
                         required
                         maxLength={200}
@@ -1834,7 +2122,7 @@ function EntryRow({
                       />
                     </Field>
                     <div className="row">
-                      <Field label="Component grams">
+                      <Field label={t("Component grams", "Вес компонента, г")}>
                         <input
                           required
                           type="number"
@@ -1847,7 +2135,7 @@ function EntryRow({
                           }
                         />
                       </Field>
-                      <Field label="Calories (kcal)">
+                      <Field label={t("Calories (kcal)", "Калории (ккал)")}>
                         <input
                           required
                           type="number"
@@ -1866,12 +2154,17 @@ function EntryRow({
                       </Field>
                     </div>
                     <details>
-                      <summary>Macros and other nutrients</summary>
+                      <summary>
+                        {t(
+                          "Macros and other nutrients",
+                          "БЖУ и другие нутриенты",
+                        )}
+                      </summary>
                       <div className="nutrient-fields">
                         {nutrientKeys
                           .filter((k) => k !== "calories")
                           .map((k) => (
-                            <Field key={k} label={nutrientLabels[k]}>
+                            <Field key={k} label={label(nutrientLabels[k])}>
                               <input
                                 type="number"
                                 min="0"
@@ -1901,7 +2194,10 @@ function EntryRow({
                         })
                       }
                     >
-                      Remove component {i + 1}
+                      {t(
+                        `Remove component ${i + 1}`,
+                        `Удалить компонент ${i + 1}`,
+                      )}
                     </button>
                   </fieldset>
                 ))}
@@ -1918,12 +2214,13 @@ function EntryRow({
                     })
                   }
                 >
-                  Add component
+                  {t("Add component", "Добавить компонент")}
                 </button>
                 <p role="status">
-                  Entry total: {num(totals.calories)} kcal · Protein{" "}
-                  {num(totals.protein)} g · Carbs {num(totals.carbs)} g · Fat{" "}
-                  {num(totals.fat)} g
+                  {t(
+                    `Entry total: ${num(totals.calories)} kcal · Protein ${num(totals.protein)} g · Carbs ${num(totals.carbs)} g · Fat ${num(totals.fat)} g`,
+                    `Итого: ${num(totals.calories)} ккал · Белок ${num(totals.protein)} г · Углеводы ${num(totals.carbs)} г · Жиры ${num(totals.fat)} г`,
+                  )}
                 </p>
                 <div className="form-footer">
                   <button
@@ -1931,7 +2228,12 @@ function EntryRow({
                     onClick={() => {
                       if (
                         JSON.stringify(draft) === JSON.stringify(entry) ||
-                        confirm("Discard your unsaved entry changes?")
+                        confirm(
+                          t(
+                            "Discard your unsaved entry changes?",
+                            "Отменить несохранённые изменения записи?",
+                          ),
+                        )
                       ) {
                         setDraft(structuredClone(entry));
                         setComponentAmount(entry.amount);
@@ -1940,9 +2242,11 @@ function EntryRow({
                       }
                     }}
                   >
-                    Cancel editing
+                    {t("Cancel editing", "Отменить изменения")}
                   </button>
-                  <Submit busy={busy}>Save correction</Submit>
+                  <Submit busy={busy}>
+                    {t("Save correction", "Сохранить корректировку")}
+                  </Submit>
                 </div>
               </fieldset>
             </form>
@@ -1965,6 +2269,7 @@ function Settings({
   busy: boolean;
   notify: (m: string) => void;
 }) {
+  const { t, locale, label } = useAppI18n();
   const [tokens, setTokens] = useState<
     { id: string; name: string; expires_at: string }[]
   >([]);
@@ -1976,7 +2281,7 @@ function Settings({
   return (
     <div className="settings-grid">
       <section className="panel">
-        <h2>Preferences</h2>
+        <h2>{t("Preferences", "Настройки")}</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -1989,7 +2294,7 @@ function Settings({
             });
           }}
         >
-          <Field label="Timezone">
+          <Field label={t("Timezone", "Часовой пояс")}>
             <input
               name="timezone"
               defaultValue={user.timezone}
@@ -2011,17 +2316,26 @@ function Settings({
             </datalist>
           </Field>
           <p className="muted">
-            “Today” uses this timezone. Past entries keep the date you logged.
+            {t(
+              "“Today” uses this timezone. Past entries keep the date you logged.",
+              "«Сегодня» определяется этим часовым поясом. Даты прошлых записей не меняются.",
+            )}
           </p>
-          <Field label="Default units">
+          <Field label={t("Default units", "Единицы по умолчанию")}>
             <select name="unitSystem" defaultValue={user.unitSystem}>
-              <option value="metric">Metric · grams</option>
-              <option value="us">US · ounces</option>
+              <option value="metric">
+                {t("Metric · grams", "Метрические · граммы")}
+              </option>
+              <option value="us">
+                {t("US · ounces", "Американские · унции")}
+              </option>
             </select>
           </Field>
-          <Submit busy={busy}>Save preferences</Submit>
+          <Submit busy={busy}>
+            {t("Save preferences", "Сохранить настройки")}
+          </Submit>
         </form>
-        <h2 className="spaced">Change password</h2>
+        <h2 className="spaced">{t("Change password", "Сменить пароль")}</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -2032,7 +2346,7 @@ function Settings({
             });
           }}
         >
-          <Field label="Current password">
+          <Field label={t("Current password", "Текущий пароль")}>
             <input
               type="password"
               autoComplete="current-password"
@@ -2040,7 +2354,12 @@ function Settings({
               required
             />
           </Field>
-          <Field label="New password (14+ characters)">
+          <Field
+            label={t(
+              "New password (14+ characters)",
+              "Новый пароль (от 14 символов)",
+            )}
+          >
             <input
               type="password"
               autoComplete="new-password"
@@ -2049,7 +2368,9 @@ function Settings({
               required
             />
           </Field>
-          <Submit busy={busy}>Change & sign out</Submit>
+          <Submit busy={busy}>
+            {t("Change & sign out", "Сменить и выйти")}
+          </Submit>
         </form>
         <div className="spaced">
           <button
@@ -2060,35 +2381,40 @@ function Settings({
               })
             }
           >
-            Sign out of this account
+            {t("Sign out of this account", "Выйти из аккаунта")}
           </button>
         </div>
       </section>
       <section className="panel">
-        <span className="eyebrow">MADE FOR YOUR AGENT</span>
-        <h2>Connect with MCP</h2>
+        <span className="eyebrow">
+          {t("MADE FOR YOUR AGENT", "ДЛЯ ВАШЕГО АГЕНТА")}
+        </span>
+        <h2>{t("Connect with MCP", "Подключение через MCP")}</h2>
         <p>
-          In Claude, add this connector URL, choose sign-in and automatic client
-          registration. Other clients can use a token in the Authorization
-          header.
+          {t(
+            "In Claude, add this connector URL, choose sign-in and automatic client registration. Other clients can use a token in the Authorization header.",
+            "В Claude добавьте этот URL коннектора, выберите вход и автоматическую регистрацию клиента. Другие клиенты могут передавать токен в заголовке Authorization.",
+          )}
         </p>
         <code className="block-code">{location.origin}/mcp</code>
         <pre>{`{"url":"${location.origin}/mcp",\n "headers":{"Authorization":"Bearer YOUR_TOKEN"}}`}</pre>
         <p>
           <a href="/agent-skill.md" target="_blank" rel="noreferrer">
-            Read the agent skill ↗
+            {t("Read the agent skill ↗", "Прочитать навык агента ↗")}
           </a>{" "}
           ·{" "}
           <a href="/calorie-ledger-skill.zip" download>
-            Download skill ZIP for Claude
+            {t(
+              "Download skill ZIP for Claude",
+              "Скачать ZIP навыка для Claude",
+            )}
           </a>
         </p>
         <p>
-          In Claude, enable code execution in Settings → Capabilities, then open
-          Customize → Skills → + → Create skill → Upload a skill. Upload the ZIP
-          and enable it. The skill teaches food matching, cooked/dry conversions
-          and missing-label research; the MCP connector provides access to your
-          ledger. Re-upload the latest ZIP when the skill changes.
+          {t(
+            "In Claude, enable code execution in Settings → Capabilities, then open Customize → Skills → + → Create skill → Upload a skill. Upload the ZIP and enable it. The skill teaches food matching, cooked/dry conversions and missing-label research; the MCP connector provides access to your ledger. Re-upload the latest ZIP when the skill changes.",
+            "В Claude включите выполнение кода в Settings → Capabilities, затем откройте Customize → Skills → + → Create skill → Upload a skill. Загрузите ZIP и включите навык. Он обучает подбору продуктов, пересчёту сухого и готового веса и поиску недостающих данных; коннектор MCP даёт доступ к дневнику. При обновлении навыка загрузите новый ZIP.",
+          )}
         </p>
         <form
           onSubmit={(e) => {
@@ -2104,14 +2430,21 @@ function Settings({
             });
           }}
         >
-          <Field label="New token name">
+          <Field label={t("New token name", "Название нового токена")}>
             <input name="name" required placeholder="Hermes" maxLength={80} />
           </Field>
-          <Submit busy={busy}>Create agent token</Submit>
+          <Submit busy={busy}>
+            {t("Create agent token", "Создать токен агента")}
+          </Submit>
         </form>
         {secret && (
           <div className="secret">
-            <strong>Copy now — shown only once.</strong>
+            <strong>
+              {t(
+                "Copy now — shown only once.",
+                "Скопируйте сейчас — токен показывается один раз.",
+              )}
+            </strong>
             <code className="block-code">{secret}</code>
             <button
               onClick={() =>
@@ -2121,38 +2454,49 @@ function Settings({
                 })
               }
             >
-              Copy token
+              {t("Copy token", "Скопировать токен")}
             </button>
-            <button onClick={() => setSecret("")}>Hide</button>
+            <button onClick={() => setSecret("")}>{t("Hide", "Скрыть")}</button>
           </div>
         )}
         <div className="token-list">
-          {tokens.map((t) => (
-            <div className="food-row" key={t.id}>
+          {tokens.map((token) => (
+            <div className="food-row" key={token.id}>
               <div>
-                <strong>{t.name}</strong>
-                <small>Expires {t.expires_at.slice(0, 10)}</small>
+                <strong>{token.name}</strong>
+                <small>
+                  {t("Expires", "Действует до")}{" "}
+                  {DateTime.fromISO(token.expires_at)
+                    .setLocale(locale)
+                    .toLocaleString(DateTime.DATE_MED)}
+                </small>
               </div>
               <button
                 className="danger"
                 onClick={() => {
-                  if (confirm(`Revoke ${t.name}?`))
+                  if (
+                    confirm(
+                      t(`Revoke ${token.name}?`, `Отозвать ${token.name}?`),
+                    )
+                  )
                     void perform(async () => {
-                      await api("/api/tokens/revoke", { id: t.id });
+                      await api("/api/tokens/revoke", { id: token.id });
                       await refresh();
                       setSecret("");
                       notify("Token revoked.");
                     });
                 }}
               >
-                Revoke
+                {t("Revoke", "Отозвать")}
               </button>
             </div>
           ))}
         </div>
         <small>
-          Tokens can access only your account. They expire after one year and
-          can be revoked at any time.
+          {t(
+            "Tokens can access only your account. They expire after one year and can be revoked at any time.",
+            "Токены дают доступ только к вашему аккаунту. Они действуют один год и могут быть отозваны в любое время.",
+          )}
         </small>
       </section>
     </div>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
 import source from "./menu-data.json";
+import english from "./menu-en.json";
+import { useI18n } from "./i18n.js";
 import "./menu.css";
 
 type Recipe = {
@@ -32,18 +34,49 @@ const data = source as unknown as {
 };
 const normalized = (text: string) =>
   text.toLocaleLowerCase("ru").replaceAll("ё", "е");
-const number = (value: number) =>
-  new Intl.NumberFormat("ru", { maximumFractionDigits: 1 }).format(value);
-const macroLabels = ["ккал", "г белка", "г жиров", "г углеводов"];
+type RecipeText = Pick<
+  Recipe,
+  "title" | "sub" | "equip" | "tips" | "store" | "vary"
+> & {
+  ing: string[][];
+  steps: string[];
+};
+const translations = english as {
+  recipes: Record<string, RecipeText>;
+  proteinLabels: Record<string, string>;
+  featureLabels: Record<string, string>;
+  meals: Record<string, string>;
+  levels: Record<string, string>;
+  shopping: Record<string, string[]>;
+};
+function recipeInEnglish(recipe: Recipe): Recipe {
+  const text = translations.recipes[recipe.id];
+  return {
+    ...recipe,
+    ...text,
+    level: translations.levels[recipe.level],
+    ing: recipe.ing.map(([key, amount], i) =>
+      key === "#"
+        ? [key, text.ing[i][0]]
+        : ([key, amount, ...text.ing[i]] as Recipe["ing"][number]),
+    ),
+    steps: recipe.steps.map(([, minutes], i) => [text.steps[i], minutes]),
+  };
+}
+const englishRecipes = data.recipes.map(recipeInEnglish);
 
 export function Menu({ userId }: { userId: string }) {
+  const { language, locale, t } = useI18n();
+  const number = (value: number) =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value);
+  const localizedRecipes = language === "en" ? englishRecipes : data.recipes;
   const [query, setQuery] = useState("");
   const [protein, setProtein] = useState("");
   const [meal, setMeal] = useState("");
   const [feature, setFeature] = useState("");
   const [sort, setSort] = useState("original");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
-  const [selected, setSelected] = useState<Recipe>();
+  const [selected, setSelected] = useState<string>();
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       const saved: unknown = JSON.parse(
@@ -77,7 +110,7 @@ export function Menu({ userId }: { userId: string }) {
     setOnlyFavorites(false);
     setSort("original");
   }
-  const recipes = data.recipes
+  const recipes = localizedRecipes
     .filter(
       (r) =>
         (!protein || r.groups.includes(protein)) &&
@@ -100,85 +133,112 @@ export function Menu({ userId }: { userId: string }) {
               : 0,
     );
   return (
-    <section className="menu-view" lang="ru" aria-label="Меню рецептов">
+    <section
+      className="menu-view"
+      lang={language}
+      aria-label={t("Recipe menu", "Меню рецептов")}
+    >
       <div className="menu-intro">
         <p>
-          Идеи для завтрака, обеда и ужина — с белком, понятными ингредиентами и
-          пошаговым приготовлением.
+          {t(
+            "Breakfast, lunch and dinner ideas with protein, everyday ingredients and step-by-step directions.",
+            "Идеи для завтрака, обеда и ужина — с белком, понятными ингредиентами и пошаговым приготовлением.",
+          )}
         </p>
         <p className="muted">
-          Пищевая ценность приблизительная. Просмотр рецептов не добавляет
-          записи в журнал.
+          {t(
+            "Nutrition values are estimates. Browsing recipes does not add journal entries.",
+            "Пищевая ценность приблизительная. Просмотр рецептов не добавляет записи в журнал.",
+          )}
         </p>
       </div>
       <div className="menu-controls">
         <label className="menu-search">
-          Найти рецепт или ингредиент
+          {t("Find a recipe or ingredient", "Найти рецепт или ингредиент")}
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Тунец, курица, авокадо…"
+            placeholder={t(
+              "Tuna, chicken, avocado…",
+              "Тунец, курица, авокадо…",
+            )}
           />
         </label>
         <label>
-          Основной белок
+          {t("Main protein", "Основной белок")}
           <select value={protein} onChange={(e) => setProtein(e.target.value)}>
-            <option value="">Любой</option>
+            <option value="">{t("Any", "Любой")}</option>
             {Object.entries(data.proteinLabels).map(([key, value]) => (
               <option key={key} value={key}>
-                {value}
+                {t(translations.proteinLabels[key], value)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Приём пищи
+          {t("Meal", "Приём пищи")}
           <select value={meal} onChange={(e) => setMeal(e.target.value)}>
-            <option value="">Любой</option>
+            <option value="">{t("Any", "Любой")}</option>
             {data.meals.map((value) => (
-              <option key={value}>{value}</option>
+              <option key={value} value={value}>
+                {t(translations.meals[value], value)}
+              </option>
             ))}
           </select>
         </label>
         <label>
-          Удобство
+          {t("Convenience", "Удобство")}
           <select value={feature} onChange={(e) => setFeature(e.target.value)}>
-            <option value="">Все рецепты</option>
+            <option value="">{t("All recipes", "Все рецепты")}</option>
             {Object.entries(data.featureLabels).map(([key, value]) => (
               <option key={key} value={key}>
-                {value}
+                {t(translations.featureLabels[key], value)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Сортировка
+          {t("Sort", "Сортировка")}
           <select value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="original">По умолчанию</option>
-            <option value="protein">Больше белка</option>
-            <option value="calories">Меньше калорий</option>
-            <option value="time">Быстрее готовить</option>
-            <option value="density">Белок на 100 ккал</option>
+            <option value="original">{t("Default", "По умолчанию")}</option>
+            <option value="protein">{t("Most protein", "Больше белка")}</option>
+            <option value="calories">
+              {t("Fewest calories", "Меньше калорий")}
+            </option>
+            <option value="time">
+              {t("Quickest to make", "Быстрее готовить")}
+            </option>
+            <option value="density">
+              {t("Protein per 100 kcal", "Белок на 100 ккал")}
+            </option>
           </select>
         </label>
       </div>
       <div className="menu-results-heading">
-        <p aria-live="polite">Рецептов: {recipes.length}</p>
+        <p aria-live="polite">
+          {t("Recipes", "Рецептов")}: {recipes.length}
+        </p>
         <div>
           <button
             aria-pressed={onlyFavorites}
             onClick={() => setOnlyFavorites(!onlyFavorites)}
           >
-            Избранное ({favorites.length})
+            {t("Favorites", "Избранное")} ({favorites.length})
           </button>
-          <button onClick={reset}>Сбросить</button>
+          <button onClick={reset}>{t("Reset", "Сбросить")}</button>
         </div>
       </div>
       <p className="menu-device-note muted">
-        Избранное сохраняется только на этом устройстве.
+        {t(
+          "Favorites are saved on this device only.",
+          "Избранное сохраняется только на этом устройстве.",
+        )}
         {saveError &&
-          " Сохранение недоступно; выбор останется до закрытия вкладки."}
+          t(
+            " Storage is unavailable; your selection will last until you close this tab.",
+            " Сохранение недоступно; выбор останется до закрытия вкладки.",
+          )}
       </p>
       {recipes.length ? (
         <div className="menu-grid">
@@ -186,8 +246,8 @@ export function Menu({ userId }: { userId: string }) {
             <article className="menu-card" key={r.id}>
               <button
                 className="menu-open"
-                onClick={() => setSelected(r)}
-                aria-label={`Открыть рецепт: ${r.title}`}
+                onClick={() => setSelected(r.id)}
+                aria-label={`${t("Open recipe", "Открыть рецепт")}: ${r.title}`}
               >
                 <img
                   src={`/menu/${r.id}.svg`}
@@ -198,39 +258,52 @@ export function Menu({ userId }: { userId: string }) {
                 />
                 <div className="menu-card-copy">
                   <p className="menu-card-meta">
-                    {r.prep + r.cook} мин · {r.level}
+                    {r.prep + r.cook} {t("min", "мин")} · {r.level}
                   </p>
                   <h2>{r.title}</h2>
                   <p>{r.sub}</p>
                   <div className="menu-card-macros">
-                    <strong>{number(r.macros[0])} ккал</strong>
-                    <strong>{number(r.macros[1])} г белка</strong>
-                    <span>на порцию</span>
+                    <strong>
+                      {number(r.macros[0])} {t("kcal", "ккал")}
+                    </strong>
+                    <strong>
+                      {number(r.macros[1])} {t("g protein", "г белка")}
+                    </strong>
+                    <span>{t("per serving", "на порцию")}</span>
                   </div>
                 </div>
               </button>
               <button
                 className="menu-favorite"
-                aria-label={`Избранное: ${r.title}`}
+                aria-label={`${t("Favorite", "Избранное")}: ${r.title}`}
                 aria-pressed={favorites.includes(r.id)}
                 onClick={() => favorite(r.id)}
               >
-                {favorites.includes(r.id) ? "★ В избранном" : "☆ В избранное"}
+                {favorites.includes(r.id)
+                  ? t("★ Saved", "★ В избранном")
+                  : t("☆ Save favorite", "☆ В избранное")}
               </button>
             </article>
           ))}
         </div>
       ) : (
         <div className="menu-empty">
-          <h2>Ничего не нашлось</h2>
-          <p>Попробуйте другой ингредиент или уберите фильтры.</p>
-          <button onClick={reset}>Показать все рецепты</button>
+          <h2>{t("No recipes found", "Ничего не нашлось")}</h2>
+          <p>
+            {t(
+              "Try another ingredient or clear the filters.",
+              "Попробуйте другой ингредиент или уберите фильтры.",
+            )}
+          </p>
+          <button onClick={reset}>
+            {t("Show all recipes", "Показать все рецепты")}
+          </button>
         </div>
       )}
       {selected && (
         <RecipeView
-          key={selected.id}
-          recipe={selected}
+          key={selected}
+          recipe={localizedRecipes.find((recipe) => recipe.id === selected)!}
           onClose={() => setSelected(undefined)}
         />
       )}
@@ -245,6 +318,15 @@ function RecipeView({
   recipe: Recipe;
   onClose: () => void;
 }) {
+  const { language, locale, t } = useI18n();
+  const number = (value: number) =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value);
+  const macroLabels = [
+    t("kcal", "ккал"),
+    t("g protein", "г белка"),
+    t("g fat", "г жиров"),
+    t("g carbs", "г углеводов"),
+  ];
   const [servings, setServings] = useState(r.servings);
   const factor = servings / r.servings;
   const shops = [
@@ -254,7 +336,7 @@ function RecipeView({
   ];
   return (
     <Modal title={r.title} onClose={onClose}>
-      <div className="menu-recipe" lang="ru">
+      <div className="menu-recipe" lang={language}>
         <img
           className="menu-recipe-image"
           src={`/menu/${r.id}.svg`}
@@ -264,10 +346,11 @@ function RecipeView({
         />
         <p>{r.sub}</p>
         <p className="muted">
-          Подготовка: {r.prep} мин · Приготовление: {r.cook} мин · {r.level}
+          {t("Prep", "Подготовка")}: {r.prep} {t("min", "мин")} ·{" "}
+          {t("Cook", "Приготовление")}: {r.cook} {t("min", "мин")} · {r.level}
         </p>
-        <section aria-label="Пищевая ценность">
-          <h3>На одну порцию</h3>
+        <section aria-label={t("Nutrition", "Пищевая ценность")}>
+          <h3>{t("Per serving", "На одну порцию")}</h3>
           <div className="menu-nutrition">
             {r.macros.map((value, i) => (
               <div key={i}>
@@ -277,12 +360,13 @@ function RecipeView({
             ))}
           </div>
           <p className="muted">
-            Оценка по исходному рецепту: марки продуктов и замены изменяют
-            результат. Состояние продукта (сырой, готовый, слитый) указано в
-            ингредиентах, где оно известно.
+            {t(
+              "Estimated from the original recipe: brands and substitutions change the result. The ingredient list specifies raw, cooked or drained weights where known.",
+              "Оценка по исходному рецепту: марки продуктов и замены изменяют результат. Состояние продукта (сырой, готовый, слитый) указано в ингредиентах, где оно известно.",
+            )}
           </p>
           <label className="menu-servings">
-            Количество порций
+            {t("Number of servings", "Количество порций")}
             <select
               value={servings}
               onChange={(e) => setServings(Number(e.target.value))}
@@ -293,7 +377,7 @@ function RecipeView({
             </select>
           </label>
           <p className="menu-batch">
-            На всё блюдо:{" "}
+            {t("Whole recipe", "На всё блюдо")}:{" "}
             {r.macros
               .map(
                 (value, i) => `${number(value * servings)} ${macroLabels[i]}`,
@@ -302,11 +386,13 @@ function RecipeView({
           </p>
         </section>
         <section>
-          <h3>Ингредиенты</h3>
+          <h3>{t("Ingredients", "Ингредиенты")}</h3>
           {factor !== 1 && (
             <p className="muted">
-              Граммы пересчитаны на {servings} порц. Приблизительные меры
-              исходного рецепта скрыты. Специи — по вкусу.
+              {t(
+                `Gram amounts are scaled to ${servings} servings. Approximate measures from the original recipe are hidden. Season to taste.`,
+                `Граммы пересчитаны на ${servings} порц. Приблизительные меры исходного рецепта скрыты. Специи — по вкусу.`,
+              )}
             </p>
           )}
           <ul className="menu-checklist">
@@ -322,7 +408,10 @@ function RecipeView({
                     <span>
                       <span>{name}</span>
                       {typeof amount === "number" && amount > 0 && (
-                        <strong> — {number(amount * factor)} г</strong>
+                        <strong>
+                          {" "}
+                          — {number(amount * factor)} {t("g", "г")}
+                        </strong>
                       )}
                       {note && (factor === 1 || !amount) && (
                         <small>{note}</small>
@@ -335,27 +424,40 @@ function RecipeView({
           </ul>
         </section>
         <section>
-          <h3>Приготовление</h3>
+          <h3>{t("Directions", "Приготовление")}</h3>
           <p className="muted">
-            Отмечайте готовые шаги. Отметки сбросятся при закрытии рецепта.
+            {t(
+              "Check off completed steps. Checkmarks reset when you close the recipe.",
+              "Отмечайте готовые шаги. Отметки сбросятся при закрытии рецепта.",
+            )}
           </p>
           {factor !== 1 && (
             <p className="muted">
-              Текст шагов, время и размеры посуды ниже — для исходных{" "}
-              {r.servings} порц. Количества берите из пересчитанного списка
-              ингредиентов. При изменении объёма готовьте партиями и проверяйте
-              готовность.
+              {t(
+                `Directions, timing and cookware sizes below are for the original ${r.servings} servings. Use the scaled ingredient amounts. When changing batch size, cook in batches and check doneness.`,
+                `Текст шагов, время и размеры посуды ниже — для исходных ${r.servings} порц. Количества берите из пересчитанного списка ингредиентов. При изменении объёма готовьте партиями и проверяйте готовность.`,
+              )}
             </p>
           )}
           <ol className="menu-checklist menu-steps">
             {r.steps.map(([text, minutes], i) => (
               <li key={i}>
                 <label>
-                  <input type="checkbox" aria-label={`Шаг ${i + 1} выполнен`} />
+                  <input
+                    type="checkbox"
+                    aria-label={t(
+                      `Step ${i + 1} complete`,
+                      `Шаг ${i + 1} выполнен`,
+                    )}
+                  />
                   <span>
                     <strong>{i + 1}. </strong>
                     {text}
-                    {minutes !== undefined && <small>{minutes} мин</small>}
+                    {minutes !== undefined && (
+                      <small>
+                        {minutes} {t("min", "мин")}
+                      </small>
+                    )}
                   </span>
                 </label>
               </li>
@@ -363,14 +465,14 @@ function RecipeView({
           </ol>
         </section>
         <details>
-          <summary>Посуда и полезные советы</summary>
-          <h4>Понадобится</h4>
+          <summary>{t("Equipment & tips", "Посуда и полезные советы")}</summary>
+          <h4>{t("You will need", "Понадобится")}</h4>
           <ul>
             {r.equip.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
-          <h4>Советы</h4>
+          <h4>{t("Tips", "Советы")}</h4>
           <ul>
             {r.tips.map((item) => (
               <li key={item}>{item}</li>
@@ -378,7 +480,7 @@ function RecipeView({
           </ul>
         </details>
         <details>
-          <summary>Хранение и замены</summary>
+          <summary>{t("Storage & substitutions", "Хранение и замены")}</summary>
           <p>{r.store}</p>
           <ul>
             {r.vary.map((item) => (
@@ -388,14 +490,22 @@ function RecipeView({
         </details>
         {shops.length > 0 && (
           <details>
-            <summary>Где искать ингредиенты</summary>
+            <summary>
+              {t("Where to find ingredients", "Где искать ингредиенты")}
+            </summary>
             <p className="muted">
-              Подсказки из исходного меню, не текущие остатки магазинов. Наличие
-              и состав проверяйте при покупке.
+              {t(
+                "Suggestions from the original menu, not current store inventory. Check availability and ingredients when shopping.",
+                "Подсказки из исходного меню, не текущие остатки магазинов. Наличие и состав проверяйте при покупке.",
+              )}
             </p>
             <ul className="menu-shopping">
               {shops.map((key) => {
-                const [name, note, availability] = data.shopping[key];
+                const [ruName, ruNote, availability] = data.shopping[key];
+                const [name, note] =
+                  language === "en"
+                    ? translations.shopping[key]
+                    : [ruName, ruNote];
                 return (
                   <li key={key}>
                     <strong>{name}</strong>
@@ -405,11 +515,15 @@ function RecipeView({
                         .flatMap((store, i) =>
                           availability[i]
                             ? [
-                                `${store}${availability[i] === 1 ? " (не всегда)" : ""}`,
+                                `${store}${availability[i] === 1 ? t(" (not always available)", " (не всегда)") : ""}`,
                               ]
                             : [],
                         )
-                        .join(" · ") || "Уточните наличие в магазине"}
+                        .join(" · ") ||
+                        t(
+                          "Check availability in store",
+                          "Уточните наличие в магазине",
+                        )}
                     </small>
                   </li>
                 );
