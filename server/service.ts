@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getMenuRecipe, listMenuRecipes } from "../src/menu-shared.js";
 import {
   defaultGoals,
   metricDefinitions,
@@ -10,6 +11,7 @@ import { isDeepStrictEqual } from "node:util";
 import { DateTime } from "luxon";
 import {
   actionSchemas,
+  dishSchema,
   nutrientKeys,
   legacyNutrientKeys,
   type Action,
@@ -373,7 +375,7 @@ export class Service {
     // locks if concurrent writes within one account become substantial.
     if (
       this.database.transaction &&
-      /^(save_|delete_|update_|remember_|log_)/.test(action)
+      /^(save_|create_|delete_|update_|remember_|log_)/.test(action)
     ) {
       return this.database.transaction(async (tx) => {
         await tx.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [
@@ -562,6 +564,94 @@ export class Service {
         return this.remember(input.query, input.productId);
       case "list_dishes":
         return this.list("dishes");
+      case "list_menu_recipes": {
+        const query = normalize(input.query || "");
+        return listMenuRecipes(input.language)
+          .filter(
+            (recipe) =>
+              !query ||
+              normalize(
+                [
+                  recipe.title,
+                  recipe.sub,
+                  ...recipe.ing.map((i) => i[2] || ""),
+                ].join(" "),
+              ).includes(query),
+          )
+          .map(({ id, title, sub, servings, prep, cook }) => ({
+            id,
+            title,
+            sub,
+            servings,
+            prep,
+            cook,
+          }));
+      }
+      case "get_menu_recipe": {
+        const recipe = getMenuRecipe(input.recipeId, input.language);
+        if (!recipe)
+          throw new AppError("not_found", "Menu recipe not found.", 404);
+        return recipe;
+      }
+      case "create_menu_dish": {
+        const recipe = getMenuRecipe(input.recipeId, input.language);
+        if (!recipe)
+          throw new AppError("not_found", "Menu recipe not found.", 404);
+        const indexes = new Set<number>();
+        for (const ingredient of input.ingredients) {
+          const source = recipe.ing[ingredient.index];
+          if (!source || source[0] === "#" || indexes.has(ingredient.index))
+            throw new AppError(
+              "invalid_input",
+              "Each ingredient must map to a unique menu ingredient index.",
+            );
+          indexes.add(ingredient.index);
+        }
+        const missing = recipe.ing.flatMap(([key, amount], index) =>
+          key !== "#" &&
+          typeof amount === "number" &&
+          amount > 0 &&
+          !indexes.has(index)
+            ? [index]
+            : [],
+        );
+        if (missing.length)
+          throw new AppError(
+            "clarification_required",
+            "Map every weighed menu ingredient to a saved food before creating the dish.",
+            422,
+            { missingIngredientIndexes: missing },
+          );
+        const omitted = recipe.ing.flatMap(([key, , name], index) =>
+          key !== "#" && !indexes.has(index) ? [name || key || ""] : [],
+        );
+        const notes = [
+          `Menu: ${recipe.id}. Ingredient amounts are full-batch grams; nutrition comes from saved foods, not menu estimates.`,
+          `Directions describe the original ${recipe.servings} servings. Use the saved ingredient quantities for this batch; adjust cookware and check doneness when scaling.`,
+          ...(omitted.length
+            ? [
+                `To-taste ingredients omitted from nutrition: ${omitted.join(", ")}.`,
+              ]
+            : []),
+          ...recipe.steps.map(([step], index) => `${index + 1}. ${step}`),
+        ]
+          .join("\n")
+          .slice(0, 2000);
+        const dish = dishSchema.parse({
+          name: recipe.title,
+          servings: input.servings,
+          notes,
+          ingredients: input.ingredients.map(
+            ({ productId, amount }: { productId: string; amount: number }) => ({
+              productId,
+              amount,
+              unit: "g",
+            }),
+          ),
+        });
+        await this.dishItems(dish);
+        return this.save("dishes", dish);
+      }
       case "save_dish":
         await this.dishItems(input.dish);
         return this.save("dishes", input.dish, input.id);

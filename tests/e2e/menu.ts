@@ -4,6 +4,60 @@ import AxeBuilder from "@axe-core/playwright";
 export async function checkMenu(page: Page, info: TestInfo) {
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await expect(page.locator(".menu-card")).toHaveCount(22);
+  // Menu imports use real saved-food nutrition and never log a meal.
+  await page
+    .getByRole("button", { name: "Open recipe: Tuna & spinach frittata" })
+    .click();
+  await page.getByLabel("Number of servings").selectOption("2");
+  await page.getByRole("button", { name: "Save as dish", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Save dish", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.locator(".menu-import .ingredient input").first(),
+  ).toHaveValue("500");
+  await page
+    .getByRole("button", { name: "＋ New food", exact: true })
+    .first()
+    .click();
+  await page
+    .getByLabel("Food name", { exact: true })
+    .fill("Menu import test ingredient");
+  await page.getByLabel("Energy (kcal)", { exact: true }).fill("100");
+  await page.getByRole("button", { name: "Save food", exact: true }).click();
+  const selectors = page.locator(".menu-import .ingredient select");
+  await expect(selectors).toHaveCount(10);
+  for (const select of await selectors.all()) {
+    await select.selectOption({ label: "Menu import test ingredient" });
+  }
+  await page
+    .getByRole("button", { name: "Preview nutrition", exact: true })
+    .click();
+  await expect(page.locator(".menu-import [role=status]")).toContainText(
+    "Per serving",
+  );
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect
+      .poll(() =>
+        page
+          .getByRole("dialog")
+          .evaluate((el) => el.scrollWidth - el.clientWidth),
+      )
+      .toBeLessThanOrEqual(1);
+  }
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole("dialog").evaluate((el) => (el.scrollTop = 0));
+  await page.screenshot({ path: info.outputPath("phone-menu-import.png") });
+  await page
+    .getByLabel("I reviewed the foods, preparation states and amounts.")
+    .check();
+  await page.getByRole("button", { name: "Save dish", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.locator(".food-card").filter({ hasText: "Tuna & spinach frittata" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByLabel("Find a recipe or ingredient").fill("frittata");
   await expect(page.locator(".menu-card")).toHaveCount(1);
   const recipe = page.getByRole("button", {

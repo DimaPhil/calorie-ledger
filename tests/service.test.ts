@@ -10,6 +10,7 @@ import {
   type User,
 } from "../src/shared.js";
 import { externalSearch } from "../server/search.js";
+import { getMenuRecipe } from "../src/menu-shared.js";
 let database: Awaited<ReturnType<typeof testDatabase>>;
 let a: Service, b: Service, p: Product;
 const provider = vi.fn(async () => ({
@@ -66,6 +67,119 @@ const input = (extra: object = {}) => ({
   ...extra,
 });
 describe("food diary service", () => {
+  it("creates reviewed menu dishes with scaled grams and saved-food nutrition, without logging", async () => {
+    const recipes = await a.run("list_menu_recipes", { query: "frittata" });
+    expect(
+      recipes.some((recipe: { id: string }) => recipe.id === "tuna-frittata"),
+    ).toBe(true);
+    const recipe = await a.run("get_menu_recipe", {
+      recipeId: "tuna-frittata",
+    });
+    expect(recipe.title).toBe(getMenuRecipe(recipe.id, "en")!.title);
+    expect(
+      (await a.run("get_menu_recipe", { recipeId: recipe.id, language: "ru" }))
+        .title,
+    ).not.toBe(recipe.title);
+    const food = await a.run("save_product", {
+      product: {
+        name: "Reviewed ingredient",
+        nutrients: { calories: 200, protein: 10 },
+      },
+    });
+    const ingredients = getMenuRecipe(recipe.id)!.ing.flatMap(
+      ([key, amount], index) =>
+        key !== "#" && typeof amount === "number" && amount > 0
+          ? [{ index, productId: food.id, amount: amount * 2 }]
+          : [],
+    );
+    const before = await a.run("get_stats", {
+      start: "2026-09-22",
+      end: "2026-09-22",
+    });
+    const dish: Dish = await a.run("create_menu_dish", {
+      recipeId: recipe.id,
+      servings: recipe.servings * 2,
+      ingredients,
+    });
+    expect(dish.ingredients.map((i) => i.amount)).toEqual(
+      ingredients.map((i) => i.amount),
+    );
+    expect(dish.servings).toBe(recipe.servings * 2);
+    expect(dish.notes).toContain("Menu: tuna-frittata");
+    expect(dish.notes).toContain("To-taste ingredients omitted");
+    const preview = await a.run("preview_dish", {
+      dish: {
+        name: dish.name,
+        servings: dish.servings,
+        ingredients: dish.ingredients,
+      },
+    });
+    expect(preview.total.calories).toBeCloseTo(
+      ingredients.reduce((total, i) => total + i.amount * 2, 0),
+    );
+    expect(
+      await a.run("get_stats", { start: "2026-09-22", end: "2026-09-22" }),
+    ).toEqual(before);
+  });
+  it("rejects incomplete, duplicate, invalid and cross-user menu mappings atomically", async () => {
+    const recipe = getMenuRecipe("tuna-frittata")!;
+    const ingredients = recipe.ing.flatMap(([key, amount], index) =>
+      key !== "#" && typeof amount === "number" && amount > 0
+        ? [{ index, productId: p.id, amount }]
+        : [],
+    );
+    const request = {
+      recipeId: recipe.id,
+      servings: recipe.servings,
+      ingredients,
+    };
+    const before = await a.run("list_dishes", {});
+    await expect(
+      a.run("create_menu_dish", {
+        ...request,
+        ingredients: ingredients.slice(1),
+      }),
+    ).rejects.toMatchObject({ code: "clarification_required" });
+    await expect(
+      a.run("create_menu_dish", {
+        ...request,
+        ingredients: [...ingredients, ingredients[0]],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      a.run("create_menu_dish", {
+        ...request,
+        ingredients: [...ingredients, { ...ingredients[0], index: 999 }],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    const foreign = await b.run("save_product", {
+      product: { name: "Private ingredient", nutrients: { calories: 100 } },
+    });
+    await expect(
+      a.run("create_menu_dish", {
+        ...request,
+        ingredients: ingredients.map((i, index) =>
+          index === 0 ? { ...i, productId: foreign.id } : i,
+        ),
+      }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await b.run("delete_product", { id: foreign.id });
+    await expect(
+      a.run("create_menu_dish", { ...request, servings: 0 }),
+    ).rejects.toMatchObject({ code: "clarification_required" });
+    await expect(
+      a.run("create_menu_dish", {
+        ...request,
+        ingredients: ingredients.map((i, index) =>
+          index === 0 ? { ...i, amount: 0 } : i,
+        ),
+      }),
+    ).rejects.toMatchObject({ code: "clarification_required" });
+    await expect(
+      a.run("get_menu_recipe", { recipeId: "missing" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    expect(await a.run("list_dishes", {})).toEqual(before);
+  });
   it("follows indexed recipe and ingredient dependencies, replacing links when a recipe changes", async () => {
     const food = await a.run("save_product", {
       product: {

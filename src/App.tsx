@@ -796,7 +796,17 @@ function SessionApp({
               <p role="status">{t("Loading menu…", "Загружаем меню…")}</p>
             }
           >
-            <Menu userId={user.id} />
+            <Menu
+              userId={user.id}
+              products={products}
+              renderFood={(name, saving, save) => (
+                <ProductForm initialName={name} busy={saving} onSave={save} />
+              )}
+              onSaved={() => {
+                setRevision((n) => n + 1);
+                setTab("Dishes");
+              }}
+            />
           </Suspense>
         )}
         {tab === "Foods" && (
@@ -1197,10 +1207,12 @@ function SessionApp({
 
 function ProductForm({
   product,
+  initialName = "",
   busy,
   onSave,
 }: {
   product?: Product;
+  initialName?: string;
   busy: boolean;
   onSave: (p: ProductInput) => void;
 }) {
@@ -1208,7 +1220,7 @@ function ProductForm({
   const [draft, setDraft] = useState<ProductInput>(() =>
     product
       ? (({ id: _id, updatedAt: _at, ...rest }) => rest)(product)
-      : blankProduct(),
+      : { ...blankProduct(), name: initialName },
   );
   const [basis, setBasis] = useState(100);
   return (
