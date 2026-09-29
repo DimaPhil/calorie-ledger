@@ -1,5 +1,5 @@
-import source from "./menu-data.json";
-import english from "./menu-en.json";
+import source from "./menu-data.json" with { type: "json" };
+import english from "./menu-en.json" with { type: "json" };
 
 export type MenuRecipe = {
   id: string;
