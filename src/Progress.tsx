@@ -558,10 +558,14 @@ export function Progress({
       </section>
       <div className="progress-panels">
         <section className="panel">
-          <span className="progress-eyebrow">
-            {t("Your daily budget", "Ваш дневной бюджет")}
-          </span>
-          <h2>{t("Calories over days", "Калории по дням")}</h2>
+          <div className="progress-panel-heading">
+            <div>
+              <span className="progress-eyebrow">
+                {t("Your daily budget", "Ваш дневной бюджет")}
+              </span>
+              <h2>{t("Calories over days", "Калории по дням")}</h2>
+            </div>
+          </div>
           <div className="progress-big">
             {average(caloriePoints) === undefined
               ? "—"
