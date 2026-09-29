@@ -1073,6 +1073,16 @@ pre {
     font-size: 70px;
   }
 }
+@media (max-width: 760px) {
+  .sidebar {
+    flex-wrap: wrap;
+  }
+  .sidebar nav {
+    width: 100%;
+    margin: 0;
+    justify-content: space-between;
+  }
+}
 @media (max-width: 620px) {
   .sidebar {
     padding: 14px 16px;
@@ -1089,12 +1099,14 @@ pre {
     width: 100%;
     margin: 0;
     justify-content: space-between;
+    gap: 2px;
   }
   .sidebar nav button {
     flex: 1;
     justify-content: center;
     min-width: 0;
-    padding: 8px 4px;
+    padding: 8px 1px;
+    font-size: 11px;
     flex-direction: column;
     min-height: 48px;
   }
