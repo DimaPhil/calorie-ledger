@@ -68,6 +68,19 @@ export async function checkProgress(page: Page, info: TestInfo) {
     page.getByRole("region", { name: "Check-in consistency" }),
   ).toContainText("38% checked in");
   await expect(page.getByRole("button", { name: /Sep 23:/ })).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const panels = page.locator(".progress-panels > .panel");
+  for (const selector of [
+    ".progress-big",
+    ".progress-figure",
+    ".progress-data",
+  ]) {
+    const first = await panels.nth(0).locator(selector).boundingBox();
+    const second = await panels.nth(1).locator(selector).boundingBox();
+    expect(Math.abs(first!.y - second!.y)).toBeLessThanOrEqual(1);
+  }
+  await page.screenshot({ path: info.outputPath("progress-aligned.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
   await calories.locator("summary").click();
   await expect(calories.getByRole("row", { name: /Sep 25/ })).toContainText(
     "In progress",

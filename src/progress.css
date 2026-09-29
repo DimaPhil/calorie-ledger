@@ -131,7 +131,7 @@
   font-size: 13px;
 }
 .progress-figure {
-  margin: auto 0 0;
+  margin: 0;
 }
 .progress-figure svg {
   display: block;
@@ -260,6 +260,17 @@
   text-align: center;
   font-size: 12px;
   margin: 0;
+}
+@media (min-width: 721px) {
+  .progress-panels > .panel {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 6;
+    row-gap: 0;
+  }
+  .progress-panels .progress-panel-heading {
+    align-items: flex-start;
+  }
 }
 @media (max-width: 720px) {
   .progress-heading {
