@@ -1,0 +1,253 @@
+.menu-view {
+  display: grid;
+  gap: 18px;
+}
+.menu-intro {
+  max-width: 740px;
+  display: grid;
+  gap: 6px;
+}
+.menu-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid #dce1d6;
+  border-radius: 16px;
+  background: #fff;
+}
+.menu-controls label,
+.menu-servings {
+  display: grid;
+  gap: 7px;
+  color: #53654e;
+  font-size: 13px;
+}
+.menu-controls input,
+.menu-controls select,
+.menu-servings select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+.menu-search {
+  grid-column: 1 / -1;
+}
+.menu-results-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.menu-results-heading > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.menu-view button[aria-pressed="true"] {
+  background: #e8eddf;
+  border-color: #789371;
+}
+.menu-device-note {
+  font-size: 12px;
+  margin-top: -10px;
+}
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 20px;
+}
+.menu-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dce1d6;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+.menu-open {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  background: transparent;
+  font-weight: 400;
+}
+.menu-open:focus-visible {
+  outline: 3px solid #315d43;
+  outline-offset: -4px;
+}
+.menu-open img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 400 / 220;
+  object-fit: cover;
+}
+.menu-card-copy {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+.menu-card-copy h2 {
+  font-family: inherit;
+  font-size: 19px;
+  line-height: 1.4;
+}
+.menu-card-copy > p {
+  color: #53654e;
+  font-size: 13px;
+}
+.menu-card-meta {
+  letter-spacing: 0.035em;
+}
+.menu-card-macros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin-top: auto;
+  padding-top: 12px;
+  color: #315d43;
+}
+.menu-card-macros span {
+  width: 100%;
+  color: #53654e;
+  font-size: 12px;
+}
+.menu-favorite {
+  align-self: flex-start;
+  margin: 0 20px 20px;
+}
+.menu-empty {
+  padding: 32px 20px;
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+.menu-recipe {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.menu-recipe-image {
+  width: 100%;
+  height: auto;
+  max-height: 230px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.menu-recipe section {
+  display: grid;
+  gap: 12px;
+}
+.menu-recipe h3 {
+  font-size: 20px;
+}
+.menu-recipe h4 {
+  margin: 12px 0 6px;
+}
+.menu-recipe .muted,
+.menu-batch {
+  font-size: 13px;
+}
+.menu-nutrition {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.menu-nutrition > div {
+  padding: 12px 6px;
+  background: #edf1e7;
+  border-radius: 10px;
+  text-align: center;
+  display: grid;
+  gap: 2px;
+}
+.menu-nutrition strong {
+  font-size: 23px;
+}
+.menu-nutrition span {
+  font-size: 12px;
+}
+.menu-servings {
+  grid-template-columns: 1fr 90px;
+  align-items: center;
+  font-size: 15px;
+}
+.menu-checklist,
+.menu-shopping {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu-checklist li {
+  border-bottom: 1px solid #e7eadf;
+  padding: 11px 0;
+}
+.menu-checklist label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+.menu-checklist input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  margin: 3px 0 0;
+  accent-color: #315d43;
+}
+.menu-checklist input:checked + span {
+  text-decoration: line-through;
+  color: #53654e;
+}
+.menu-checklist small {
+  display: block;
+  color: #53654e;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.menu-checklist .menu-ingredient-group {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.menu-recipe details {
+  border-top: 1px solid #dce1d6;
+  padding-top: 14px;
+}
+.menu-recipe summary {
+  font-weight: 600;
+}
+.menu-recipe details > p {
+  margin-top: 12px;
+}
+.menu-shopping li {
+  border-bottom: 1px solid #e7eadf;
+  padding: 14px 0;
+}
+.menu-shopping p,
+.menu-shopping small {
+  font-size: 13px;
+  color: #53654e;
+}
+@media (max-width: 740px) {
+  .menu-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px;
+  }
+}
+@media (max-width: 380px) {
+  .menu-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .menu-nutrition {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
