@@ -53,6 +53,5 @@ export async function checkMenu(page: Page, info: TestInfo) {
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({
     path: info.outputPath("phone-menu.png"),
-    fullPage: true,
   });
 }
