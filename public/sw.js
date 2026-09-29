@@ -1,4 +1,4 @@
-const CACHE = "calorie-ledger-offline-v1";
+const CACHE = "calorie-ledger-offline-v2";
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.add("/offline.html")),

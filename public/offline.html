@@ -1,2 +1,104 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f7f7f2"><title>Offline · Calorie Ledger</title><style>body{margin:0;background:#f7f7f2;color:#25352e;font:18px/1.6 system-ui;padding:max(32px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left))}main{max-width:32rem;margin:15vh auto}h1{font:36px Georgia,serif}a{display:inline-block;background:#315d43;color:white;padding:12px 24px;border-radius:9px;text-decoration:none}</style></head><body><main><h1>You’re offline.</h1><p>Reconnect to view your journal or save food. Nothing can be submitted while you’re offline.</p><a href="/">Try again</a></main></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f7f7f2" />
+    <title>Offline · Calorie Ledger</title>
+    <style>
+      body {
+        margin: 0;
+        background: #f7f7f2;
+        color: #25352e;
+        font: 18px/1.6 system-ui;
+        padding: max(32px, env(safe-area-inset-top))
+          max(24px, env(safe-area-inset-right))
+          max(32px, env(safe-area-inset-bottom))
+          max(24px, env(safe-area-inset-left));
+      }
+      main {
+        max-width: 32rem;
+        margin: 15vh auto;
+      }
+      h1 {
+        font:
+          36px Georgia,
+          serif;
+      }
+      a {
+        display: inline-block;
+        background: #315d43;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 9px;
+        text-decoration: none;
+      }
+      .language {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 12px;
+      }
+      select {
+        font: inherit;
+        max-width: 100%;
+        padding: 10px;
+        border: 1px solid #d6ddce;
+        border-radius: 9px;
+        background: white;
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <label class="language" for="language"
+      ><span data-en="Language" data-ru="Язык">Language</span
+      ><select id="language">
+        <option value="en" lang="en">English</option>
+        <option value="ru" lang="ru">Русский</option>
+      </select></label
+    >
+    <main>
+      <h1 data-en="You’re offline." data-ru="Нет подключения к сети.">
+        You’re offline.
+      </h1>
+      <p
+        data-en="Reconnect to view your journal or save food. Nothing can be submitted while you’re offline."
+        data-ru="Подключитесь к интернету, чтобы открыть дневник или сохранить еду. Без подключения отправить данные нельзя."
+      >
+        Reconnect to view your journal or save food. Nothing can be submitted
+        while you’re offline.
+      </p>
+      <a href="/" data-en="Try again" data-ru="Попробовать снова">Try again</a>
+    </main>
+    <script>
+      const language = document.getElementById("language");
+      function setLanguage(value) {
+        const selected = value === "ru" ? "ru" : "en";
+        document.documentElement.lang = selected;
+        language.value = selected;
+        document.title =
+          selected === "ru"
+            ? "Нет сети · Calorie Ledger"
+            : "Offline · Calorie Ledger";
+        document.querySelectorAll("[data-en][data-ru]").forEach((element) => {
+          element.textContent = element.dataset[selected];
+        });
+      }
+      try {
+        setLanguage(localStorage.getItem("calorie-ledger-language"));
+      } catch {
+        setLanguage("en");
+      }
+      language.addEventListener("change", () => {
+        setLanguage(language.value);
+        try {
+          localStorage.setItem("calorie-ledger-language", language.value);
+        } catch {}
+      });
+    </script>
+  </body>
+</html>

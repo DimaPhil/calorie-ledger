@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
+import { useI18n, localizeLabel, localizeError } from "./i18n.js";
 import { action, type Stats, type Nutrients } from "./shared";
 import {
   defaultGoals,
@@ -9,9 +10,20 @@ import {
 import "./progress.css";
 
 export const PROGRESS_START_DATE = "2026-09-24";
-const format = (value: number) =>
-  new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
-const label = (date: string) => DateTime.fromISO(date).toFormat("MMM d");
+function useProgressFormat() {
+  const { locale, language, t } = useI18n();
+  return {
+    t,
+    locale,
+    language,
+    format: (value: number) =>
+      new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value),
+    label: (date: string) =>
+      DateTime.fromISO(date)
+        .setLocale(locale)
+        .toLocaleString({ month: "short", day: "numeric" }),
+  };
+}
 type Point = {
   date: string;
   value?: number;
@@ -36,6 +48,7 @@ function Chart({
   bars?: boolean;
   onDay: (date: string) => void;
 }) {
+  const { t, format, label } = useProgressFormat();
   const values = points.flatMap((p) =>
     [p.value, p.target, p.average].filter((v): v is number => v !== undefined),
   );
@@ -53,12 +66,18 @@ function Chart({
       {hasData ? (
         <figure
           className="progress-figure"
-          aria-label={`${title}. Exact values and journal links are available in Show daily values.`}
+          aria-label={t(
+            `${title}. Exact values and journal links are available in Show daily values.`,
+            `${title}. Точные значения и ссылки на дневник доступны в разделе «Показать значения по дням».`,
+          )}
         >
           <svg
             viewBox="0 0 510 210"
             role="img"
-            aria-label={`${title}, ${label(points[0].date)} to ${label(points.at(-1)!.date)}. ${points.filter((p) => p.value !== undefined).length} recorded days.`}
+            aria-label={t(
+              `${title}, ${label(points[0].date)} to ${label(points.at(-1)!.date)}. ${points.filter((p) => p.value !== undefined).length} recorded days.`,
+              `${title}, с ${label(points[0].date)} по ${label(points.at(-1)!.date)}. Дней с записями: ${points.filter((p) => p.value !== undefined).length}.`,
+            )}
           >
             {[0, 0.5, 1].map((fraction) => (
               <g key={fraction}>
@@ -119,8 +138,15 @@ function Chart({
                       >
                         <title>
                           {label(p.date)}: {format(p.value)} {unit}
-                          {p.partial ? " · incomplete nutrition" : ""}
-                          {p.complete ? " · day complete" : " · in progress"}
+                          {p.partial
+                            ? t(
+                                " · incomplete nutrition",
+                                " · неполные данные о питании",
+                              )
+                            : ""}
+                          {p.complete
+                            ? t(" · day complete", " · день завершён")
+                            : t(" · in progress", " · в процессе")}
                         </title>
                       </rect>
                     ) : (
@@ -145,7 +171,8 @@ function Chart({
                     className="progress-average"
                   >
                     <title>
-                      Week to date average: {format(p.average)} {unit}
+                      {t("Week to date average:", "Среднее за текущую неделю:")}{" "}
+                      {format(p.average)} {unit}
                     </title>
                   </circle>
                 )}
@@ -161,12 +188,20 @@ function Chart({
         </figure>
       ) : (
         <div className="progress-empty">
-          No {title.toLowerCase()} recorded yet.
-          <span>Open a day below to add your first record.</span>
+          {t(
+            `No ${title.toLowerCase()} recorded yet.`,
+            `Пока нет записей: ${title.toLowerCase()}.`,
+          )}
+          <span>
+            {t(
+              "Open a day below to add your first record.",
+              "Выберите день ниже, чтобы добавить первую запись.",
+            )}
+          </span>
         </div>
       )}
       <details className="progress-data">
-        <summary>Show daily values</summary>
+        <summary>{t("Show daily values", "Показать значения по дням")}</summary>
         <div className="progress-table-wrap">
           <table>
             <caption>
@@ -174,12 +209,12 @@ function Chart({
             </caption>
             <thead>
               <tr>
-                <th>Day</th>
-                <th>Recorded</th>
+                <th>{t("Day", "День")}</th>
+                <th>{t("Recorded", "Записано")}</th>
                 {points.some((p) => p.target !== undefined) && (
-                  <th>Goal / limit</th>
+                  <th>{t("Goal / limit", "Цель / лимит")}</th>
                 )}
-                <th>Status</th>
+                <th>{t("Status", "Статус")}</th>
               </tr>
             </thead>
             <tbody>
@@ -199,16 +234,19 @@ function Chart({
                   )}
                   <td>
                     {p.value === undefined
-                      ? "Not recorded"
+                      ? t("Not recorded", "Нет записи")
                       : p.partial
-                        ? "Missing nutrition"
+                        ? t("Missing nutrition", "Неполные данные о питании")
                         : bars
                           ? p.complete
-                            ? "Complete"
-                            : "In progress"
-                          : "Recorded"}
+                            ? t("Complete", "Завершён")
+                            : t("In progress", "В процессе")
+                          : t("Recorded", "Записано")}
                     {p.average !== undefined
-                      ? ` · weekly mean ${format(p.average)}`
+                      ? t(
+                          ` · weekly mean ${format(p.average)}`,
+                          ` · среднее за неделю ${format(p.average)}`,
+                        )
                       : ""}
                   </td>
                 </tr>
@@ -230,6 +268,7 @@ export function Progress({
   revision: number;
   onDay: (date: string) => void;
 }) {
+  const { t, locale, language, format, label } = useProgressFormat();
   const [windowDays, setWindowDays] = useState(30);
   const [customRange, setCustomRange] = useState({
     start: PROGRESS_START_DATE,
@@ -257,9 +296,15 @@ export function Progress({
   const end = windowDays === 0 ? customRange.end : today;
   const rangeError =
     !start || !end || start < PROGRESS_START_DATE || end > today || start > end
-      ? "Choose dates from September 24, 2026 through today, with the end on or after the start."
+      ? t(
+          "Choose dates from September 24, 2026 through today, with the end on or after the start.",
+          "Выберите даты с 24 сентября 2026 года по сегодня. Конец периода должен быть не раньше начала.",
+        )
       : DateTime.fromISO(end).diff(DateTime.fromISO(start), "days").days >= 366
-        ? "Choose an interval of up to 366 days."
+        ? t(
+            "Choose an interval of up to 366 days.",
+            "Выберите период не более 366 дней.",
+          )
         : "";
   useEffect(() => {
     let active = true;
@@ -290,19 +335,24 @@ export function Progress({
     <div className="progress-heading">
       <div>
         <p>
-          Your trends begin {label(PROGRESS_START_DATE)}. Every recorded day
-          adds to the picture.
+          {t(
+            `Your trends begin ${label(PROGRESS_START_DATE)}. Every recorded day adds to the picture.`,
+            `Динамика отслеживается с ${label(PROGRESS_START_DATE)}. Каждая запись дополняет картину.`,
+          )}
         </p>
       </div>
       <div className="progress-period">
-        <div className="progress-ranges" aria-label="Progress period">
+        <div
+          className="progress-ranges"
+          aria-label={t("Progress period", "Период прогресса")}
+        >
           {[7, 30, 90].map((days) => (
             <button
               key={days}
               aria-pressed={days === windowDays}
               onClick={() => setWindowDays(days)}
             >
-              {days} days
+              {t(`${days} days`, `${days} дней`)}
             </button>
           ))}
           <button
@@ -312,15 +362,18 @@ export function Progress({
               setWindowDays(0);
             }}
           >
-            Custom
+            {t("Custom", "Свой период")}
           </button>
         </div>
         {windowDays === 0 && (
           <div className="progress-dates">
             <label>
-              From
+              {t("From", "С")}
               <input
-                aria-label="Progress start date"
+                aria-label={t(
+                  "Progress start date",
+                  "Начальная дата прогресса",
+                )}
                 type="date"
                 min={PROGRESS_START_DATE}
                 max={today}
@@ -331,9 +384,9 @@ export function Progress({
               />
             </label>
             <label>
-              To
+              {t("To", "По")}
               <input
-                aria-label="Progress end date"
+                aria-label={t("Progress end date", "Конечная дата прогресса")}
                 type="date"
                 min={PROGRESS_START_DATE}
                 max={today}
@@ -360,8 +413,10 @@ export function Progress({
       <section className="progress-page">
         {toolbar}
         <div className="panel">
-          <p role="alert">{error}</p>
-          <button onClick={() => setRetry((v) => v + 1)}>Retry progress</button>
+          <p role="alert">{localizeError(error, language)}</p>
+          <button onClick={() => setRetry((v) => v + 1)}>
+            {t("Retry progress", "Загрузить снова")}
+          </button>
         </div>
       </section>
     );
@@ -369,7 +424,7 @@ export function Progress({
     return (
       <section className="progress-page">
         {toolbar}
-        <p role="status">Loading progress…</p>
+        <p role="status">{t("Loading progress…", "Загрузка прогресса…")}</p>
       </section>
     );
   const { stats, goals } = data;
@@ -407,6 +462,8 @@ export function Progress({
   const completeCount = days.filter((d) => checkin(d.date)?.complete).length;
   const recordedCount = days.filter((d) => checkin(d.date)).length;
   const nutrientDef = metricDefinitions.find((m) => m.key === nutrient)!;
+  const nutrientLabel = localizeLabel(nutrientDef.label, language);
+  const nutrientUnit = localizeLabel(nutrientDef.unit, language);
   const bodyPoints: Point[] = days.map((day) => ({
     date: day.date,
     value: checkin(day.date)?.[body as "weight" | "waist"],
@@ -432,12 +489,16 @@ export function Progress({
   }
   const recoveryLabel =
     recovery === "beverages"
-      ? "Drinks"
+      ? t("Drinks", "Напитки")
       : recovery === "sleep"
-        ? "Sleep"
-        : "Wellbeing";
+        ? t("Sleep", "Сон")
+        : t("Wellbeing", "Самочувствие");
   const recoveryUnit =
-    recovery === "beverages" ? "ml" : recovery === "sleep" ? "h" : "/ 5";
+    recovery === "beverages"
+      ? t("ml", "мл")
+      : recovery === "sleep"
+        ? t("h", "ч")
+        : "/ 5";
   const recoveryPoints: Point[] = days.map((day) => ({
     date: day.date,
     value: checkin(day.date)?.[recovery as "sleep" | "beverages" | "energy"],
@@ -448,22 +509,27 @@ export function Progress({
       {toolbar}
       <section
         className="panel progress-consistency"
-        aria-label="Check-in consistency"
+        aria-label={t("Check-in consistency", "Регулярность отметок")}
       >
         <div className="progress-panel-heading">
           <div>
-            <span className="progress-eyebrow">Showing up</span>
-            <h2>Daily check-ins</h2>
+            <span className="progress-eyebrow">
+              {t("Showing up", "День за днём")}
+            </span>
+            <h2>{t("Daily check-ins", "Ежедневные отметки")}</h2>
           </div>
           <div className="progress-big">
             {recordedCount}
-            <small> / {days.length} days</small>
+            <small>
+              {t(` / ${days.length} days`, ` / ${days.length} дней`)}
+            </small>
           </div>
         </div>
         <p>
-          {Math.round((recordedCount / Math.max(days.length, 1)) * 100)}%
-          checked in · {completeCount} food days marked complete. Tap a day to
-          open its journal and check-in.
+          {t(
+            `${Math.round((recordedCount / Math.max(days.length, 1)) * 100)}% checked in · ${completeCount} food days marked complete. Tap a day to open its journal and check-in.`,
+            `Отметки за ${Math.round((recordedCount / Math.max(days.length, 1)) * 100)}% дней · Дней с полным учётом питания: ${completeCount}. Нажмите на день, чтобы открыть его дневник и отметку.`,
+          )}
         </p>
         <div className="progress-calendar">
           {days.map((day) => (
@@ -473,9 +539,11 @@ export function Progress({
                 checkin(day.date) ? "progress-day recorded" : "progress-day"
               }
               onClick={() => onDay(day.date)}
-              aria-label={`${label(day.date)}: ${checkin(day.date) ? "checked in" : "no check-in"}${checkin(day.date)?.complete ? ", food day complete" : ""}`}
+              aria-label={`${label(day.date)}: ${checkin(day.date) ? t("checked in", "отметка есть") : t("no check-in", "нет отметки")}${checkin(day.date)?.complete ? t(", food day complete", ", питание за день записано полностью") : ""}`}
             >
-              <span>{DateTime.fromISO(day.date).toFormat("ccc")}</span>
+              <span>
+                {DateTime.fromISO(day.date).setLocale(locale).toFormat("ccc")}
+              </span>
               <strong>{label(day.date)}</strong>
               <span aria-hidden="true">
                 {checkin(day.date)?.complete
@@ -490,22 +558,25 @@ export function Progress({
       </section>
       <div className="progress-panels">
         <section className="panel">
-          <span className="progress-eyebrow">Your daily budget</span>
-          <h2>Calories over days</h2>
+          <span className="progress-eyebrow">
+            {t("Your daily budget", "Ваш дневной бюджет")}
+          </span>
+          <h2>{t("Calories over days", "Калории по дням")}</h2>
           <div className="progress-big">
             {average(caloriePoints) === undefined
               ? "—"
               : format(average(caloriePoints)!)}
-            <small> kcal / day</small>
+            <small>{t(" kcal / day", " ккал / день")}</small>
           </div>
           <p>
-            Average from {knownCount(caloriePoints)} complete days with known
-            calories. Hollow bars are still in progress or have missing
-            nutrition.
+            {t(
+              `Average from ${knownCount(caloriePoints)} complete days with known calories. Hollow bars are still in progress or have missing nutrition.`,
+              `Среднее по завершённым дням с известной калорийностью: ${knownCount(caloriePoints)}. Пустые столбцы — незавершённые дни или неполные данные о питании.`,
+            )}
           </p>
           <Chart
-            title="Calories"
-            unit="kcal"
+            title={t("Calories", "Калории")}
+            unit={t("kcal", "ккал")}
             points={caloriePoints}
             bars
             onDay={onDay}
@@ -513,26 +584,28 @@ export function Progress({
           <div className="progress-legend">
             <span>
               <i />
-              Complete
+              {t("Complete", "Полные данные")}
             </span>
             <span>
               <i className="hollow" />
-              Partial
+              {t("Partial", "Неполные данные")}
             </span>
             <span>
               <i className="dashed" />
-              Daily target
+              {t("Daily target", "Дневная цель")}
             </span>
           </div>
         </section>
         <section className="panel">
           <div className="progress-panel-heading">
             <div>
-              <span className="progress-eyebrow">Nutrition consistency</span>
-              <h2>Nutrients over days</h2>
+              <span className="progress-eyebrow">
+                {t("Nutrition consistency", "Регулярность питания")}
+              </span>
+              <h2>{t("Nutrients over days", "Нутриенты по дням")}</h2>
             </div>
             <label className="progress-select">
-              <span className="sr-only">Nutrient</span>
+              <span className="sr-only">{t("Nutrient", "Нутриент")}</span>
               <select
                 value={nutrient}
                 onChange={(e) => setNutrient(e.target.value)}
@@ -541,7 +614,7 @@ export function Progress({
                   .filter((m) => m.source === "food" && m.key !== "calories")
                   .map((m) => (
                     <option key={m.key} value={m.key}>
-                      {m.label}
+                      {localizeLabel(m.label, language)}
                     </option>
                   ))}
               </select>
@@ -551,16 +624,25 @@ export function Progress({
             {average(nutrientPoints) === undefined
               ? "—"
               : format(average(nutrientPoints)!)}
-            <small> {nutrientDef.unit} / day</small>
+            <small>
+              {" "}
+              {nutrientUnit}
+              {t(" / day", " / день")}
+            </small>
           </div>
           <p>
-            Average from {knownCount(nutrientPoints)} complete days with fully
-            known {nutrientDef.label.toLowerCase()}. Dashed line:{" "}
-            {nutrientDef.kind === "limit" ? "upper limit" : "daily target"}.
+            {t(
+              `Average from ${knownCount(nutrientPoints)} complete days with fully known ${nutrientDef.label.toLowerCase()}. Dashed line: `,
+              `Среднее по завершённым дням с полными данными (${nutrientLabel.toLowerCase()}): ${knownCount(nutrientPoints)}. Пунктир: `,
+            )}
+            {nutrientDef.kind === "limit"
+              ? t("upper limit", "верхний лимит")
+              : t("daily target", "дневная цель")}
+            .
           </p>
           <Chart
-            title={nutrientDef.label}
-            unit={nutrientDef.unit}
+            title={nutrientLabel}
+            unit={nutrientUnit}
             points={nutrientPoints}
             bars
             onDay={onDay}
@@ -569,14 +651,18 @@ export function Progress({
         <section className="panel">
           <div className="progress-panel-heading">
             <div>
-              <span className="progress-eyebrow">The longer view</span>
-              <h2>Body measurements</h2>
+              <span className="progress-eyebrow">
+                {t("The longer view", "Долгосрочная динамика")}
+              </span>
+              <h2>{t("Body measurements", "Измерения тела")}</h2>
             </div>
             <label className="progress-select">
-              <span className="sr-only">Body measurement</span>
+              <span className="sr-only">
+                {t("Body measurement", "Показатель тела")}
+              </span>
               <select value={body} onChange={(e) => setBody(e.target.value)}>
-                <option value="weight">Weight</option>
-                <option value="waist">Waist</option>
+                <option value="weight">{t("Weight", "Вес")}</option>
+                <option value="waist">{t("Waist", "Талия")}</option>
               </select>
             </label>
           </div>
@@ -588,15 +674,21 @@ export function Progress({
                   bodyPoints.filter((p) => p.value !== undefined).at(-1)!
                     .value!,
                 )}
-            <small> {body === "weight" ? "kg" : "cm"} latest</small>
+            <small>
+              {" "}
+              {body === "weight" ? t("kg", "кг") : t("cm", "см")}{" "}
+              {t("latest", "последнее")}
+            </small>
           </div>
           <p>
-            Solid dots are your measurements; outlined dots are weekly averages
-            within this view. Gaps stay empty.
+            {t(
+              "Solid dots are your measurements; outlined dots are weekly averages within this view. Gaps stay empty.",
+              "Закрашенные точки — ваши измерения; контурные — средние за неделю в выбранном периоде. Пропуски остаются пустыми.",
+            )}
           </p>
           <Chart
-            title={body === "weight" ? "Weight" : "Waist"}
-            unit={body === "weight" ? "kg" : "cm"}
+            title={body === "weight" ? t("Weight", "Вес") : t("Waist", "Талия")}
+            unit={body === "weight" ? t("kg", "кг") : t("cm", "см")}
             points={bodyPoints}
             onDay={onDay}
           />
@@ -604,18 +696,22 @@ export function Progress({
         <section className="panel">
           <div className="progress-panel-heading">
             <div>
-              <span className="progress-eyebrow">Daily rhythm</span>
-              <h2>Rest & hydration</h2>
+              <span className="progress-eyebrow">
+                {t("Daily rhythm", "Ежедневный ритм")}
+              </span>
+              <h2>{t("Rest & hydration", "Отдых и напитки")}</h2>
             </div>
             <label className="progress-select">
-              <span className="sr-only">Daily rhythm metric</span>
+              <span className="sr-only">
+                {t("Daily rhythm metric", "Показатель ежедневного ритма")}
+              </span>
               <select
                 value={recovery}
                 onChange={(e) => setRecovery(e.target.value)}
               >
-                <option value="sleep">Sleep</option>
-                <option value="beverages">Drinks</option>
-                <option value="energy">Wellbeing</option>
+                <option value="sleep">{t("Sleep", "Сон")}</option>
+                <option value="beverages">{t("Drinks", "Напитки")}</option>
+                <option value="energy">{t("Wellbeing", "Самочувствие")}</option>
               </select>
             </label>
           </div>
@@ -633,12 +729,16 @@ export function Progress({
                     ),
                   )!,
                 )}
-            <small> {recoveryUnit} average</small>
+            <small>
+              {" "}
+              {recoveryUnit} {t("average", "в среднем")}
+            </small>
           </div>
           <p>
-            Based on{" "}
-            {recoveryPoints.filter((p) => p.value !== undefined).length}{" "}
-            recorded days. Missing check-ins do not count as zero.
+            {t(
+              `Based on ${recoveryPoints.filter((p) => p.value !== undefined).length} recorded days. Missing check-ins do not count as zero.`,
+              `Дней с записями: ${recoveryPoints.filter((p) => p.value !== undefined).length}. Пропущенные отметки не считаются нулями.`,
+            )}
           </p>
           <Chart
             title={recoveryLabel}
@@ -649,9 +749,10 @@ export function Progress({
         </section>
       </div>
       <p className="progress-footnote">
-        Targets follow the settings effective on each day. Nutrition averages
-        exclude unfinished days and missing values. Progress is a record, not an
-        automatic adjustment to your goals.
+        {t(
+          "Targets follow the settings effective on each day. Nutrition averages exclude unfinished days and missing values. Progress is a record, not an automatic adjustment to your goals.",
+          "Цели соответствуют настройкам, действовавшим в каждый день. Средние показатели питания исключают незавершённые дни и пропущенные значения. Прогресс отражает записи и не изменяет ваши цели автоматически.",
+        )}
       </p>
     </section>
   );

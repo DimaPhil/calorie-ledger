@@ -1,0 +1,767 @@
+{
+  "proteinLabels": {
+    "tuna": "Tuna",
+    "eggw": "Egg whites",
+    "chicken": "Chicken",
+    "shrimp": "Shrimp",
+    "fish": "Fish",
+    "turkey": "Turkey",
+    "dairy": "Cottage cheese & yogurt",
+    "whey": "Protein powder"
+  },
+  "featureLabels": {
+    "carb": "With carbs",
+    "costco": "Costco ingredients",
+    "nocook": "No cooking",
+    "quick": "15 minutes or less",
+    "prep": "Meal prep",
+    "avo": "With avocado"
+  },
+  "meals": {
+    "Завтрак": "Breakfast",
+    "Обед": "Lunch",
+    "Ужин": "Dinner",
+    "Перекус": "Snack",
+    "Десерт": "Dessert"
+  },
+  "levels": { "Просто": "Easy", "Очень просто": "Very easy" },
+  "recipes": {
+    "tuna-frittata": {
+      "title": "Tuna & spinach frittata",
+      "sub": "A tender frittata with tuna, spinach, feta and lemon zest, topped with avocado.",
+      "equip": ["20–24 cm nonstick skillet with a lid", "Bowl and whisk"],
+      "ing": [
+        ["Liquid egg whites", "≈1 cup"],
+        ["Tuna in water, drained", "1 can"],
+        ["Spinach", "2 handfuls"],
+        ["Red onion", "¼ onion"],
+        ["Dill", ""],
+        ["Avocado", "½ fruit"],
+        ["Feta", "crumbled"],
+        ["Dijon mustard", "1 tsp"],
+        ["Lemon juice and zest", "2 tsp juice"],
+        ["Olive oil", "½ tsp or cooking spray"],
+        ["Salt, black pepper, garlic powder, chili flakes", "to taste"]
+      ],
+      "steps": [
+        "Finely chop the onion and dill. Drain the tuna and flake it with a fork.",
+        "Heat the skillet over medium heat and coat with oil. Cook the onion until soft.",
+        "Add the spinach and stir until wilted.",
+        "Whisk the egg whites with mustard, lemon zest, salt, pepper, garlic powder and chili. Spread the tuna in the skillet, pour over the egg whites and sprinkle with feta.",
+        "Reduce the heat to medium-low and cover. Cook without stirring until the center is set.",
+        "Sprinkle with dill, top with avocado slices and drizzle with lemon juice. Serve immediately."
+      ],
+      "tips": [
+        "Low heat and a lid keep the egg whites tender rather than rubbery.",
+        "For a golden edge, remove the lid for the last 2 minutes."
+      ],
+      "store": "Best fresh. Without avocado, refrigerate for up to 2 days; microwave for 40 seconds to reheat.",
+      "vary": [
+        "Replace the tuna with 120 g cooked chicken breast.",
+        "Serve with sriracha or another hot sauce."
+      ]
+    },
+    "tuna-avocado-salad": {
+      "title": "Avocado tuna salad, no mayo",
+      "sub": "Mash avocado with lemon and mustard, then add tuna and a pickle. One bowl, no stove.",
+      "equip": ["Bowl", "Fork"],
+      "ing": [
+        ["Tuna in water, drained", "1 can"],
+        ["Avocado", "½ fruit"],
+        ["Lemon juice", "1 tbsp"],
+        ["Dijon mustard", "1½ tsp"],
+        ["Dill pickle", "1 pickle"],
+        ["Capers", "1 tbsp"],
+        ["Red onion", "optional"],
+        ["Cucumber, for serving", "sliced into rounds"],
+        ["Romaine leaves", "optional"],
+        ["Black pepper", "to taste"]
+      ],
+      "steps": [
+        "Mash the avocado with a fork, lemon juice and mustard.",
+        "Add the tuna, finely chopped pickle, capers and onion. Mix and season with pepper.",
+        "Eat with cucumber rounds or in romaine leaves."
+      ],
+      "tips": [
+        "Drain the tuna well: excess water makes the salad runny.",
+        "The capers and pickle provide plenty of salt."
+      ],
+      "store": "Eat the same day: avocado browns. Press plastic wrap directly onto the salad's surface.",
+      "vary": [
+        "Replace half the avocado with 50 g nonfat Greek yogurt for less fat and more protein.",
+        "Add a pinch of smoked paprika or sriracha."
+      ]
+    },
+    "tuna-patties": {
+      "title": "Baked tuna patties",
+      "sub": "Mix everything in one bowl, spoon onto a baking sheet and bake. Serve with lime avocado and ready-made salsa.",
+      "equip": ["Bowl", "Parchment-lined baking sheet or air fryer"],
+      "ing": [
+        ["Patties"],
+        ["Tuna in water, drained", "2 cans"],
+        ["Liquid egg whites", "¼ cup"],
+        ["Rolled oats", "⅓ cup"],
+        ["Onion, finely chopped", "or 1 tsp dried onion"],
+        ["Dijon mustard", "2 tsp"],
+        ["Lemon juice", "2 tsp"],
+        ["Oil or cooking spray for the baking sheet", ""],
+        [
+          "Salt, pepper, smoked paprika, garlic powder, chili flakes",
+          "to taste"
+        ],
+        ["To serve"],
+        ["Avocado", "¾ fruit"],
+        ["Lime juice", "1 tbsp"],
+        ["Salsa", "ready-made"]
+      ],
+      "steps": [
+        "Preheat the oven to 200 °C and line a baking sheet with parchment.",
+        "Squeeze excess liquid from the tuna and combine with all the patty ingredients in a bowl.",
+        "Spoon into 6 mounds and flatten to 2 cm thick.",
+        "Bake, flipping halfway through.",
+        "Mash the avocado with lime and salt. Serve with the patties and salsa."
+      ],
+      "tips": [
+        "If the mixture is too wet, add a spoonful of oats.",
+        "Air fryer: 190 °C for 10–12 minutes."
+      ],
+      "store": "Refrigerate the patties for 3 days or freeze for 2 months.",
+      "vary": [
+        "Use canned salmon instead of tuna for more fat and omega-3s.",
+        "Serve with cucumber and dill."
+      ]
+    },
+    "egg-white-muffins": {
+      "title": "Vegetable egg-white muffins",
+      "sub": "Twelve omelet muffins for the week, made with frozen vegetables and no chopping. Take them from the fridge and reheat for a minute.",
+      "equip": ["12-cup muffin pan, silicone or greased", "Measuring jug"],
+      "ing": [
+        ["Liquid egg whites", "≈3 cups"],
+        ["Frozen peppers and onions", "e.g. TJ Fire Roasted Peppers & Onions"],
+        ["Baby spinach", "no chopping needed"],
+        ["Crumbled feta", ""],
+        ["Grated Parmesan", ""],
+        ["Dijon mustard", "2 tsp"],
+        ["Cooking spray for the pan", ""],
+        [
+          "Salt, pepper, garlic powder, smoked paprika, Italian herbs",
+          "to taste"
+        ]
+      ],
+      "steps": [
+        "Preheat the oven to 180 °C and grease the pan.",
+        "Microwave the vegetables to thaw them, then squeeze out excess water.",
+        "Divide the vegetables, spinach and feta among the 12 cups.",
+        "Whisk the egg whites with mustard, Parmesan and spices in the jug, then pour into the cups.",
+        "Bake until the centers are firm.",
+        "Cool for 5 minutes, then run a knife around the edges to release."
+      ],
+      "tips": [
+        "Squeeze the vegetables well, or the muffins will be watery.",
+        "One serving is 3 muffins."
+      ],
+      "store": "Refrigerate for up to 5 days in a container lined with paper towel, or freeze for up to 2 months. Reheat for 45–60 seconds.",
+      "vary": [
+        "Add 130 g tuna or turkey for another 30 g protein per batch.",
+        "Pizza version: tomatoes, oregano and a little Parmesan."
+      ]
+    },
+    "tuna-poke": {
+      "title": "Rice-free tuna poke bowl",
+      "sub": "Tuna, edamame, cucumber and avocado with soy-lime dressing and spicy yogurt.",
+      "equip": ["Bowl", "2 cups for sauces"],
+      "ing": [
+        ["Tuna in water, drained", "1 can"],
+        ["Frozen shelled edamame", ""],
+        ["Cucumber", ""],
+        ["Avocado", "⅓ fruit"],
+        ["Bagged shredded cabbage (coleslaw mix)", ""],
+        ["Nori or seaweed snacks", "½ sheet"],
+        ["Sauces"],
+        ["Reduced-sodium soy sauce", "1 tbsp"],
+        ["Lime juice", "2 tsp"],
+        ["Sesame oil", "½ tsp"],
+        ["Rice or apple cider vinegar", "2 tsp"],
+        ["Nonfat Greek yogurt", "2 tbsp"],
+        ["Sriracha", "2 tsp"],
+        ["Sesame seeds", "1 tsp"]
+      ],
+      "steps": [
+        "Cover the edamame with hot tap water to thaw, then drain.",
+        "Mix the soy sauce, lime, sesame oil and vinegar in one cup. Mix the yogurt and sriracha in the other.",
+        "Put the tuna, edamame, diced cucumber, avocado and cabbage in a bowl.",
+        "Drizzle with both sauces and sprinkle with sesame seeds and nori."
+      ],
+      "tips": ["Mix some dressing into the tuna to make it juicier."],
+      "store": "Assemble just before eating. The sauces keep for a week.",
+      "vary": [
+        "Replace the tuna with 150 g cooked shrimp.",
+        "For a rice option, see Shrimp & edamame fried rice."
+      ]
+    },
+    "chili-lime-chicken": {
+      "title": "Chili-lime chicken with avocado",
+      "sub": "Thin chicken breast pieces with spices and lime, cooked for 4 minutes per side. Serve with avocado and ready-made salsa.",
+      "equip": ["Skillet or air fryer"],
+      "ing": [
+        ["Chicken"],
+        ["Chicken breast or thin-sliced breast", "2 pieces"],
+        ["Lime juice", "1 lime"],
+        ["Olive oil", "2 tsp"],
+        ["Jarred minced garlic", "1 tsp"],
+        ["Paprika 1 tsp, cumin ½ tsp, ground chili ¼ tsp, salt ¾ tsp", ""],
+        ["To serve"],
+        ["Avocado, sliced", "¾ fruit"],
+        ["Salsa", "ready-made"],
+        ["Romaine lettuce", ""]
+      ],
+      "steps": [
+        "Slice the breasts in half horizontally into thin pieces. Skip this if using thin-sliced breast.",
+        "Rub with oil, lime juice, garlic and spices. Cook right away or let stand for 10 minutes.",
+        "Cook in a hot skillet for 4 minutes on each side.",
+        "Let rest, then slice.",
+        "Serve with avocado, salsa and lettuce."
+      ],
+      "tips": [
+        "Thin pieces cook quickly without drying out.",
+        "Air fryer: 200 °C for 10 minutes."
+      ],
+      "store": "Cooked chicken keeps for 4 days. Make 4 servings at once for the week.",
+      "vary": [
+        "Use lemon and oregano instead of lime.",
+        "Slice into a salad or burrito bowl."
+      ]
+    },
+    "yogurt-chicken-salad": {
+      "title": "Rotisserie chicken salad with yogurt",
+      "sub": "Ready-cooked rotisserie chicken, Greek yogurt instead of mayo, grapes and walnuts. No stove needed.",
+      "equip": ["Bowl"],
+      "ing": [
+        ["Rotisserie chicken breast, skin removed", "≈½ chicken"],
+        ["Nonfat Greek yogurt", "½ cup"],
+        ["Dijon mustard", "2 tsp"],
+        ["Lemon juice", "2 tsp"],
+        ["Seedless grapes", "15 grapes"],
+        ["Celery", "optional"],
+        ["Walnuts", "a handful"],
+        ["Lettuce, for serving", ""],
+        ["Salt, pepper, dill", "to taste"]
+      ],
+      "steps": [
+        "Remove the breast meat from the rotisserie chicken and shred it by hand.",
+        "Mix the yogurt, mustard, lemon juice, salt and pepper.",
+        "Add the chicken, halved grapes and celery, then mix.",
+        "Sprinkle with walnuts and eat from the bowl or in lettuce leaves."
+      ],
+      "tips": ["One Costco rotisserie chicken makes 2–3 servings."],
+      "store": "Refrigerate for up to 3 days. Add the walnuts just before eating.",
+      "vary": [
+        "Use diced apple instead of grapes.",
+        "Curry version: add ½ tsp curry powder to the dressing."
+      ]
+    },
+    "garlic-shrimp-zoodles": {
+      "title": "Garlic shrimp with zucchini noodles",
+      "sub": "Garlicky shrimp and cherry tomatoes over ready-made zucchini noodles. One skillet, 10 minutes.",
+      "equip": ["Large skillet"],
+      "ing": [
+        ["Raw peeled shrimp", "≈24 shrimp"],
+        ["Ready-made zucchini noodles", "2 packages"],
+        ["Cherry tomatoes", "≈10 tomatoes"],
+        ["Jarred minced garlic", "2 tsp"],
+        ["Olive oil", "1 tbsp"],
+        ["Lemon juice", "½ lemon"],
+        ["Parmesan", ""],
+        ["Chili flakes, salt, pepper", ""]
+      ],
+      "steps": [
+        "Pat the shrimp dry with a towel and season with salt.",
+        "Heat the oil over high heat and add the shrimp in a single layer.",
+        "Flip, then add garlic, chili and cherry tomatoes.",
+        "Add the zucchini noodles and heat through, stirring.",
+        "Drizzle with lemon juice and sprinkle with Parmesan."
+      ],
+      "tips": [
+        "The shrimp are done when they curl into a C shape.",
+        "Keep the zucchini on the heat for no longer than 2 minutes, or it will release water.",
+        "Frozen shrimp thaw in about 5 minutes in a bowl of cold water."
+      ],
+      "store": "Best fresh. Store the shrimp separately for 2 days.",
+      "vary": [
+        "A spoonful of butter at the end makes a restaurant-style sauce (+50 kcal).",
+        "Use spaghetti squash instead of zucchini."
+      ]
+    },
+    "shrimp-ceviche": {
+      "title": "Ceviche with cooked shrimp",
+      "sub": "Cooked shrimp, ready-made pico de gallo, lime, cucumber and avocado. Almost no chopping.",
+      "equip": ["Bowl"],
+      "ing": [
+        ["Frozen cooked shrimp", ""],
+        ["Pico de gallo", "ready-made"],
+        ["Lime juice", "2 limes"],
+        ["Cucumber", ""],
+        ["Avocado", "¾ fruit"],
+        ["Salt", "to taste"]
+      ],
+      "steps": [
+        "Thaw the shrimp in a bowl of cold water and pat dry.",
+        "Cut the shrimp in half and dice the cucumber and avocado.",
+        "Mix everything with the pico de gallo and lime juice, then season with salt.",
+        "If time allows, let stand in the refrigerator."
+      ],
+      "tips": [
+        "Ready-made pico already contains onion, tomatoes, cilantro and jalapeño."
+      ],
+      "store": "Eat the same day. Without avocado, it keeps for up to a day.",
+      "vary": [
+        "Add mango for sweetness (+30 kcal per serving).",
+        "Serve on lettuce leaves."
+      ]
+    },
+    "lemon-caper-cod": {
+      "title": "Cod with lemon, capers & tomatoes",
+      "sub": "Oven-baked cod with cherry tomatoes and capers. The fish stays moist and makes its own sauce.",
+      "equip": ["Baking dish", "Thermometer, recommended"],
+      "ing": [
+        ["Cod fillets", "2 pieces"],
+        ["Cherry tomatoes", "≈14 tomatoes"],
+        ["Capers", "1 tbsp"],
+        ["Lemon, juice and slices", "½ lemon"],
+        ["Olive oil", "2 tsp"],
+        ["Garlic", "2 cloves"],
+        ["Parsley or dill", ""],
+        ["Salt, pepper, a pinch of chili flakes", ""]
+      ],
+      "steps": [
+        "Preheat the oven to 200 °C.",
+        "Halve the cherry tomatoes and mix with capers, garlic, half the oil and salt.",
+        "Place the cod in the dish, season with salt and pepper, brush with the remaining oil and cover with lemon slices.",
+        "Arrange the tomatoes around the fish and bake until the fish is opaque and flakes easily (63 °C).",
+        "Drizzle with lemon juice, sprinkle with herbs and spoon over the pan juices."
+      ],
+      "tips": [
+        "Thaw frozen cod completely and pat dry, or the dish will be watery.",
+        "Thick pieces take 16–18 minutes; thin pieces take 10."
+      ],
+      "store": "Refrigerate for up to 2 days. Reheat gently for 30–40 seconds.",
+      "vary": [
+        "Use the same recipe for tilapia, pollock or halibut.",
+        "Replace some capers with Kalamata olives."
+      ]
+    },
+    "fish-lettuce-tacos": {
+      "title": "Fish tacos in lettuce leaves",
+      "sub": "Spiced fish, bagged cabbage with spicy yogurt, avocado and salsa in romaine leaves.",
+      "equip": ["Skillet", "Bowl"],
+      "ing": [
+        ["Fish"],
+        ["Cod or tilapia", ""],
+        ["Oil", "2 tsp"],
+        ["Paprika, cumin and garlic powder, ½ tsp each; salt", ""],
+        ["To serve"],
+        ["Shredded cabbage (coleslaw mix)", ""],
+        ["Nonfat Greek yogurt", ""],
+        ["Sriracha", "2 tsp"],
+        ["Lime juice", ""],
+        ["Avocado", "½ fruit"],
+        ["Salsa", ""],
+        ["Romaine leaves", "8 leaves"]
+      ],
+      "steps": [
+        "Pat the fish dry and rub with the spices.",
+        "Pan-fry for 3 minutes on each side.",
+        "Mix the yogurt with sriracha and lime, then stir half into the cabbage.",
+        "Flake the fish with a fork and divide among the leaves with cabbage, avocado, salsa and sauce."
+      ],
+      "tips": ["A dry fish surface browns; a wet one steams."],
+      "store": "Store the fish and cabbage separately for up to 2 days. Assemble before eating.",
+      "vary": [
+        "With shrimp: cook for 2 minutes per side.",
+        "Use chipotle instead of sriracha."
+      ]
+    },
+    "savory-cottage-bowl": {
+      "title": "Savory cottage cheese & vegetables",
+      "sub": "Cottage cheese with tomatoes, cucumber, herbs and a drizzle of olive oil. Five minutes and 30 g protein.",
+      "equip": ["Bowl", "Knife"],
+      "ing": [
+        ["1% cottage cheese or low-fat farmer cheese", "1 cup"],
+        ["Tomatoes or cherry tomatoes", ""],
+        ["Cucumber", ""],
+        ["Green onion", ""],
+        ["Dill", ""],
+        ["Olive oil", "1 tsp"],
+        ["Everything Bagel seasoning", "1 tsp"],
+        ["Black pepper", "to taste"]
+      ],
+      "steps": [
+        "Dice the tomatoes and cucumber, then chop the herbs and onion.",
+        "Spoon the cottage cheese into a bowl and top with vegetables.",
+        "Drizzle with oil and sprinkle with pepper and seasoning."
+      ],
+      "tips": [
+        "Everything Bagel seasoning replaces salt and adds crunch.",
+        "Use 2% cottage cheese if 1% tastes bland: +20 kcal."
+      ],
+      "store": "Assemble just before eating.",
+      "vary": [
+        "Add 50 g smoked turkey (+12 g protein).",
+        "Sweet version: berries, cinnamon and a spoonful of nuts."
+      ]
+    },
+    "skyr-berry-bowl": {
+      "title": "Greek yogurt with berries & walnuts",
+      "sub": "Thick Greek yogurt with a spoonful of protein powder, berries, walnuts and chia.",
+      "equip": ["Bowl"],
+      "ing": [
+        ["Nonfat Greek yogurt or skyr", "1 cup"],
+        ["Vanilla whey isolate", "½ scoop"],
+        ["Berries, fresh or thawed", "⅔ cup"],
+        ["Walnuts", "3 halves"],
+        ["Chia seeds", "1 tsp"],
+        ["Cinnamon, sweetener", "to taste"]
+      ],
+      "steps": [
+        "Stir the protein powder into the yogurt until smooth. Add a spoonful of water if too thick.",
+        "Top with berries, walnuts and chia, then sprinkle with cinnamon."
+      ],
+      "tips": ["Thawed berries release juice that acts as a sauce."],
+      "store": "The yogurt and protein mixture keeps for 2 days. Add toppings just before eating.",
+      "vary": [
+        "Chocolate version: chocolate protein powder and cocoa.",
+        "Replace the walnuts with 1 tbsp protein granola."
+      ]
+    },
+    "chocolate-protein-pudding": {
+      "title": "Chocolate protein pudding",
+      "sub": "A thick chocolate dessert made with Greek yogurt, protein powder and cocoa. Prepare in 5 minutes, then chill.",
+      "equip": ["Bowl and whisk", "2 small jars"],
+      "ing": [
+        ["Nonfat Greek yogurt", "1¼ cups"],
+        ["Chocolate whey isolate", "1 scoop"],
+        ["Unsweetened cocoa", "2 tbsp"],
+        ["Unsweetened almond milk", "¼ cup"],
+        ["Raspberries, for serving", ""],
+        ["Sweetener, a pinch of salt, vanilla", "to taste"]
+      ],
+      "steps": [
+        "Mix the protein powder, cocoa and salt. Add the milk and stir into a smooth paste.",
+        "Stir in the yogurt and sweetener.",
+        "Divide between jars and refrigerate.",
+        "Serve with raspberries."
+      ],
+      "tips": [
+        "Mix the dry ingredients with milk first, then add yogurt to prevent cocoa lumps."
+      ],
+      "store": "Refrigerate for up to 4 days.",
+      "vary": [
+        "Add 1 tsp peanut butter (+30 kcal).",
+        "Mocha: add ½ tsp instant coffee."
+      ]
+    },
+    "green-protein-smoothie": {
+      "title": "Green protein smoothie",
+      "sub": "Whey, spinach and avocado: a creamy texture, healthy fats and 30 g protein in a glass.",
+      "equip": ["Blender"],
+      "ing": [
+        ["Vanilla whey isolate", "1 scoop"],
+        ["Avocado", "⅓ fruit"],
+        ["Spinach", "a large handful"],
+        ["Unsweetened almond milk", "1 cup"],
+        ["Banana, preferably frozen", "⅓ banana"],
+        ["Lime juice", "1 tsp"],
+        ["3–4 ice cubes, mint leaves", ""]
+      ],
+      "steps": [
+        "Add the liquid to the blender, followed by spinach, avocado, banana, protein powder and ice.",
+        "Blend on high until completely smooth.",
+        "Taste and add lime or ice as desired."
+      ],
+      "tips": ["Liquid at the bottom helps the blender run smoothly."],
+      "store": "Drink immediately. Avocado smoothies brown within a couple of hours.",
+      "vary": [
+        "Add 100 g skyr for 11 g more protein and a creamier texture.",
+        "Add cucumber and mint for freshness."
+      ]
+    },
+    "turkey-lettuce-wraps": {
+      "title": "Turkey lettuce wraps",
+      "sub": "Lean ground turkey and mushrooms in a sweet-savory glaze. One skillet, with ready-minced garlic and ginger.",
+      "equip": ["Large skillet"],
+      "ing": [
+        ["99% lean ground turkey", "1 package"],
+        ["Sliced mushrooms", "roughly chopped"],
+        ["Jarred minced garlic", "1½ tsp"],
+        ["Ginger paste or frozen ginger cubes", "1½ tsp"],
+        ["Reduced-sodium soy sauce", "1½ tbsp"],
+        ["Honey", "1 tsp"],
+        ["Rice or apple cider vinegar", "2 tsp"],
+        ["Lime juice", "1 tbsp"],
+        ["Sriracha", "to taste"],
+        ["Oil", "1 tsp"],
+        ["Sesame oil", "1 tsp"],
+        ["Lettuce leaves, iceberg or butterhead", "8–10 leaves"],
+        ["Sesame seeds", "1 tsp"]
+      ],
+      "steps": [
+        "Heat the oil over high heat and add the turkey and mushrooms.",
+        "Break up the turkey with a spatula and cook through.",
+        "Add the garlic and ginger, followed by the combined soy sauce, honey, vinegar, lime and sriracha. Reduce to a glaze.",
+        "Remove from the heat and add sesame oil. Spoon into lettuce leaves and sprinkle with sesame seeds."
+      ],
+      "tips": [
+        "Mushrooms keep 99% lean ground turkey juicy.",
+        "Mix the sauce in a cup beforehand so you can pour it in all at once."
+      ],
+      "store": "Refrigerate the turkey mixture for 4 days. Store the leaves separately, wrapped in a towel.",
+      "vary": [
+        "Use ground chicken breast instead of turkey.",
+        "Add rice for a full lunch (+185 kcal per 150 g)."
+      ]
+    },
+    "burrito-bowl": {
+      "title": "Rotisserie chicken burrito bowl",
+      "sub": "Ready-cooked brown rice, rotisserie chicken, black beans, corn, salsa and avocado. Just assemble.",
+      "equip": ["Bowl", "Microwave"],
+      "ing": [
+        ["Rotisserie chicken breast", ""],
+        ["Cooked brown rice", "1 pouch or cup"],
+        ["Black beans, rinsed", "⅓ can"],
+        ["Frozen corn", ""],
+        ["Salsa", ""],
+        ["Avocado", "⅓ fruit"],
+        ["Nonfat Greek yogurt instead of sour cream", "2 tbsp"],
+        ["Lime juice", ""],
+        ["Cumin, salt, hot sauce", "to taste"]
+      ],
+      "steps": [
+        "Microwave the rice and corn.",
+        "Rinse the beans and season with salt and cumin.",
+        "Arrange the rice, beans, corn and chicken in a bowl.",
+        "Top with salsa, avocado, a spoonful of yogurt and lime."
+      ],
+      "tips": [
+        "Buy enough rotisserie chicken and rice for 3 bowls.",
+        "Add sriracha or chipotle for heat."
+      ],
+      "store": "Without avocado, an assembled bowl keeps for 3 days.",
+      "vary": [
+        "Use tuna or cooked shrimp instead of chicken.",
+        "Replace the rice with quinoa."
+      ]
+    },
+    "salmon-sheet-pan": {
+      "title": "Sheet-pan salmon, sweet potato & broccoli",
+      "sub": "Sweet potato, frozen broccoli and salmon on one baking sheet, with a dill yogurt sauce.",
+      "equip": ["Parchment-lined baking sheet", "Bowl for the sauce"],
+      "ing": [
+        ["Salmon fillet, preferably wild sockeye", ""],
+        ["Sweet potato", "2 medium"],
+        ["Frozen broccoli", "½ bag"],
+        ["Olive oil", "2 tsp"],
+        ["Lemon juice", ""],
+        ["Salt, pepper, smoked paprika, garlic powder", ""],
+        ["Sauce"],
+        ["Nonfat Greek yogurt", ""],
+        ["Dijon mustard", "1 tsp"],
+        ["Fresh or dried dill", ""]
+      ],
+      "steps": [
+        "Preheat the oven to 220 °C. Cut the sweet potatoes into 2 cm cubes; no need to peel.",
+        "Toss the sweet potatoes with half the oil and the spices directly on the baking sheet, then roast.",
+        "Move the sweet potatoes aside, add the broccoli and salmon, drizzle with the remaining oil and season with salt.",
+        "Bake until the salmon flakes easily.",
+        "Mix the yogurt, mustard, dill and lemon juice."
+      ],
+      "tips": [
+        "Salmon provides omega-3 fats.",
+        "Do not thaw the broccoli; put it straight on the baking sheet."
+      ],
+      "store": "Refrigerate for up to 2 days.",
+      "vary": [
+        "Use baby potatoes instead of sweet potatoes.",
+        "Use cod instead of salmon: about 100 fewer kcal per serving."
+      ]
+    },
+    "protein-pasta-tuna": {
+      "title": "Protein pasta with tuna & cherry tomatoes",
+      "sub": "While the pasta cooks, sauté cherry tomatoes with garlic, tuna, capers and spinach. A sauce without cream.",
+      "equip": ["Pot", "Skillet"],
+      "ing": [
+        ["Protein pasta (Barilla Protein+ or Banza)", "½ package"],
+        ["Tuna in water, drained", "2 cans"],
+        ["Cherry tomatoes", "1 box"],
+        ["Capers", "1 tbsp"],
+        ["Jarred minced garlic", "1½ tsp"],
+        ["Olive oil", "1 tbsp"],
+        ["Lemon juice and zest", ""],
+        ["Parmesan", ""],
+        ["Baby spinach", "a handful"],
+        ["Salt for the water, chili flakes, pepper", ""]
+      ],
+      "steps": [
+        "Cook the pasta in salted water according to the package. Reserve half a cup of cooking water.",
+        "Meanwhile, heat the oil with garlic, chili and cherry tomatoes in a skillet, crushing the tomatoes with a fork.",
+        "Add the tuna, capers and spinach, then heat through.",
+        "Stir in the pasta, a little cooking water and lemon. Sprinkle with Parmesan."
+      ],
+      "tips": ["Pasta water makes the sauce silky without cream."],
+      "store": "Keeps for up to 3 days; also good cold.",
+      "vary": [
+        "Use shrimp instead of tuna.",
+        "Banza chickpea pasta adds more fiber."
+      ]
+    },
+    "overnight-oats": {
+      "title": "Protein overnight oats",
+      "sub": "Mix in a jar in five minutes at night; eat cold in the morning. Oats, yogurt, protein powder and berries.",
+      "equip": ["Jar or container with a lid"],
+      "ing": [
+        ["Rolled oats", "½ cup"],
+        ["Nonfat Greek yogurt", "⅔ cup"],
+        ["Vanilla whey isolate", "½ scoop"],
+        ["Unsweetened almond milk", "½ cup"],
+        ["Chia seeds", "2 tsp"],
+        ["Frozen berries", "⅔ cup"],
+        ["Cinnamon, sweetener", "to taste"]
+      ],
+      "steps": [
+        "Mix the oats, protein powder, chia and cinnamon in a jar.",
+        "Add the yogurt and milk, stir, then top with berries.",
+        "Cover and refrigerate overnight."
+      ],
+      "tips": [
+        "Make 3–4 jars at once for the next few days.",
+        "Frozen berries thaw overnight and release their juice."
+      ],
+      "store": "Refrigerate for up to 4 days.",
+      "vary": [
+        "Chocolate version: cocoa and chocolate protein powder.",
+        "Use apple and cinnamon instead of berries."
+      ]
+    },
+    "shrimp-fried-rice": {
+      "title": "Shrimp & edamame fried rice",
+      "sub": "Everything from the freezer: cooked rice, mixed vegetables, edamame and cooked shrimp. One skillet.",
+      "equip": ["Large skillet or wok"],
+      "ing": [
+        ["Cooked shrimp, thawed", ""],
+        ["Cooked brown rice", "preferably cold or frozen"],
+        ["Frozen mixed vegetables", "peas, carrots, corn"],
+        ["Shelled edamame", ""],
+        ["Liquid egg whites", "⅔ cup"],
+        ["Reduced-sodium soy sauce", "2 tbsp"],
+        ["Jarred minced garlic", "1 tsp"],
+        ["Oil", "1 tsp"],
+        ["Sesame oil", "1 tsp"],
+        ["Sriracha", "to taste"]
+      ],
+      "steps": [
+        "Heat the oil over high heat and stir-fry the vegetables and edamame straight from the freezer.",
+        "Push to the side, pour in the egg whites and stir until set.",
+        "Add the rice, garlic and shrimp, then stir-fry.",
+        "Pour in the soy sauce and finish with sesame oil and sriracha."
+      ],
+      "tips": [
+        "Cold rice fries better than freshly cooked rice and does not clump."
+      ],
+      "store": "Keeps for up to 3 days; reheat for 1½ minutes.",
+      "vary": [
+        "Use rotisserie chicken instead of shrimp.",
+        "Add pineapple chunks."
+      ]
+    },
+    "chicken-hummus-wrap": {
+      "title": "Rotisserie chicken & hummus wrap",
+      "sub": "A tortilla, hummus, rotisserie chicken and fresh vegetables. Five minutes, no stove.",
+      "equip": ["Cutting board", "Knife"],
+      "ing": [
+        ["Whole-wheat tortilla or lavash", "1 large"],
+        ["Rotisserie chicken breast", ""],
+        ["Hummus", "2 tbsp"],
+        ["Baby spinach", "a handful"],
+        ["Cucumber", ""],
+        ["Tomato", ""],
+        ["Cumin, sriracha, salt", "to taste"]
+      ],
+      "steps": [
+        "Spread the hummus over the tortilla.",
+        "Add the chicken, spinach, cucumber and tomato, then season.",
+        "Roll tightly and cut in half. If desired, brown in a dry skillet for a minute on each side."
+      ],
+      "tips": [
+        "Hummus acts as a sauce and provides fats from chickpeas, tahini and olive oil."
+      ],
+      "store": "Best assembled before eating; the filling keeps in a container for 3 days.",
+      "vary": ["Use tzatziki instead of hummus.", "Add 20 g feta."]
+    }
+  },
+  "shopping": {
+    "tuna": ["Tuna in water", ""],
+    "eggw": ["Liquid egg whites", "Kirkland, Egg Beaters"],
+    "chicken": ["Chicken breast", ""],
+    "turkey": [
+      "99% lean ground turkey",
+      "Jennie-O; Costco usually carries 93% lean"
+    ],
+    "shrimp": ["Frozen raw shrimp", ""],
+    "cod": ["Frozen cod fillets", ""],
+    "greek": ["Nonfat Greek yogurt", "Kirkland, Fage, Chobani"],
+    "cottage": ["1–2% cottage cheese", ""],
+    "whey": [
+      "Whey isolate",
+      "Costco more often carries blends; look for 'isolate' on the label"
+    ],
+    "feta": ["Crumbled feta", ""],
+    "parm": ["Grated Parmesan", ""],
+    "dijon": ["Dijon mustard", ""],
+    "capers": ["Capers", ""],
+    "pickle": ["Dill pickles", ""],
+    "edamame": ["Frozen shelled edamame", ""],
+    "nori": ["Nori or seaweed snacks", ""],
+    "soy": ["Low-sodium soy sauce", ""],
+    "sesame": ["Sesame seeds", ""],
+    "sesoil": ["Sesame oil", ""],
+    "ricevin": ["Rice vinegar", "Substitute: Kirkland apple cider vinegar"],
+    "sriracha": ["Sriracha", ""],
+    "harissa": [
+      "Harissa",
+      "TJ: Traditional Tunisian Harissa. Substitute: sriracha + smoked paprika"
+    ],
+    "honey": ["Honey", ""],
+    "oats": ["Rolled oats", ""],
+    "berries": ["Frozen berries", ""],
+    "walnuts": ["Walnuts", ""],
+    "chia": ["Chia seeds", ""],
+    "cocoa": ["Unsweetened cocoa", ""],
+    "almondmilk": ["Unsweetened almond milk", ""],
+    "salsa": ["Salsa", ""],
+    "crushed": ["Canned tomatoes", ""],
+    "ebtb": ["Everything Bagel seasoning", "TJ: Everything but the Bagel"],
+    "oil": ["Olive oil", ""],
+    "rotis": [
+      "Rotisserie chicken",
+      "TJ carries sliced ready-cooked grilled chicken"
+    ],
+    "rice": ["Cooked brown rice", "Microwave pouches or frozen"],
+    "beans": ["Canned black beans", ""],
+    "corn": ["Frozen corn", ""],
+    "salmon": ["Salmon fillet", "Kirkland wild sockeye"],
+    "broccoli": ["Frozen broccoli", ""],
+    "ppasta": ["Protein pasta", "Barilla Protein+, Banza"],
+    "vegmix": ["Frozen mixed vegetables", ""],
+    "pepfrozen": [
+      "Frozen peppers and onions",
+      "TJ Fire Roasted Peppers & Onions"
+    ],
+    "pico": ["Pico de gallo", ""],
+    "cshrimp": ["Frozen cooked shrimp", ""],
+    "hummus": ["Hummus", ""],
+    "tortilla": ["Whole-wheat tortillas", ""],
+    "zoodles": ["Zucchini noodles", "In the produce or frozen section"],
+    "slaw": ["Coleslaw mix", "Bagged shredded cabbage"],
+    "mgarlic": ["Jarred minced garlic", ""],
+    "ginger": ["Ginger paste or frozen ginger", "TJ: Crushed Ginger cubes"]
+  }
+}

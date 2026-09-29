@@ -213,6 +213,14 @@ describe("OAuth connector", () => {
     expect(page.headers["content-security-policy"]).toContain(
       "frame-ancestors 'none'",
     );
+    const scriptNonce = page.text.match(/<script nonce="([^"]+)">/)?.[1];
+    expect(scriptNonce).toBeTruthy();
+    expect(page.headers["content-security-policy"]).toContain(
+      `script-src 'nonce-${scriptNonce}'`,
+    );
+    expect(page.headers["content-security-policy"]).not.toContain(
+      "script-src 'unsafe-inline'",
+    );
     const id = new URL(path, origin).searchParams.get("request");
     expect(
       (

@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { useI18n } from "./i18n.js";
 
 export function Modal({
   title,
@@ -9,6 +10,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   useEffect(() => {
     const old = document.activeElement as HTMLElement;
     const oldOverflow = document.body.style.overflow;
@@ -32,7 +34,10 @@ export function Modal({
     >
       <div className="modal-heading">
         <h2 id="modal-title">{title}</h2>
-        <button onClick={onClose} aria-label="Close dialog">
+        <button
+          onClick={onClose}
+          aria-label={t("Close dialog", "Закрыть окно")}
+        >
           ×
         </button>
       </div>

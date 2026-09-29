@@ -139,7 +139,33 @@ strong {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 58px;
+  margin-top: 28px;
+}
+.language-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #53654e;
+  font-size: 12px;
+}
+.language-switcher select {
+  min-height: 40px;
+  min-width: 0;
+  padding: 7px 10px;
+  font-size: 14px;
+}
+.sidebar > .language-switcher {
+  margin-top: 24px;
+}
+.login {
+  position: relative;
+}
+.login > .language-switcher {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
+  z-index: 1;
 }
 .sidebar nav button {
   display: flex;
@@ -1005,6 +1031,8 @@ pre {
 }
 @media (max-width: 850px) {
   .sidebar {
+    flex-wrap: wrap;
+    gap: 16px;
     position: static;
     width: 100%;
     padding: 17px 22px;
@@ -1021,6 +1049,9 @@ pre {
     gap: 7px;
   }
   .sidebar nav {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
     flex-direction: row;
     margin: 0 0 0 auto;
     gap: 4px;
@@ -1029,11 +1060,18 @@ pre {
     padding: 8px 12px;
     gap: 7px;
     font-size: 12px;
+    overflow-wrap: anywhere;
   }
   .sidebar nav button span {
     font-size: 16px;
   }
   .sidebar-bottom {
+    display: none;
+  }
+  .sidebar > .language-switcher {
+    margin: 0 0 0 auto;
+  }
+  .sidebar > .language-switcher > span {
     display: none;
   }
   .shell {
@@ -1061,6 +1099,9 @@ pre {
   }
   .login-form {
     padding: 28px;
+  }
+  .login-story {
+    padding-top: 90px;
   }
   .food-art {
     gap: 10px;
@@ -1257,6 +1298,12 @@ pre {
   }
   .login-story .brand {
     top: 25px;
+  }
+  .login-story .brand {
+    top: 76px;
+  }
+  .login-story {
+    padding-top: 125px;
   }
   .login-story h1 {
     font-size: 43px;

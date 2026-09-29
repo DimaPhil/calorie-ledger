@@ -305,6 +305,14 @@ test("OAuth sign-in, consent, callback and revocation", async ({
     await expect(
       page.getByText("read, add, edit, and delete", { exact: false }),
     ).toBeVisible();
+    await page.locator("#language").selectOption("ru");
+    await expect(
+      page.getByRole("heading", { name: "Подключить Calorie Ledger" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Разрешить доступ" }),
+    ).toBeVisible();
+    await page.locator("#language").selectOption("en");
     await page
       .getByLabel("Username", { exact: true })
       .fill(`tester-${testInfo.project.name}`);
