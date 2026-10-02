@@ -1364,6 +1364,10 @@ pre {
   cursor: pointer;
   font-weight: 600;
 }
+.settings-grid > .export-panel {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
 .export-actions {
   display: flex;
   flex-wrap: wrap;
