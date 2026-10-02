@@ -46,6 +46,19 @@ export async function checkProgress(page: Page, info: TestInfo) {
       beverages: 2000,
     });
   }
+  const incomplete = await post("save_product", {
+    product: {
+      name: "Missing fiber",
+      nutrients: { calories: 0, protein: 0, iron: 0 },
+    },
+  });
+  await post("log_food", {
+    productId: incomplete.id,
+    amount: 100,
+    unit: "g",
+    date: "2026-09-25",
+    idempotencyKey: `missing-fiber-${info.project.name}-${info.retry}`,
+  });
   await page.getByRole("button", { name: "Progress", exact: true }).click();
   const calories = page
     .locator(".progress-panels > section")
@@ -96,8 +109,23 @@ export async function checkProgress(page: Page, info: TestInfo) {
   const nutrients = page.getByRole("region", { name: "Nutrients over days" });
   await expect(nutrients.locator(".progress-big")).toContainText("15");
   await expect(nutrients).toContainText(
-    "3 of 3 logged days have complete nutrient data",
+    "2 of 3 logged days have complete nutrient data",
   );
+  await expect(nutrients.locator(".progress-bar-partial")).toHaveCount(6);
+  await nutrients.locator("summary").click();
+  await expect(nutrients.getByRole("row", { name: /Sep 25/ })).toContainText(
+    "Missing nutrition",
+  );
+  await expect(nutrients.getByRole("row", { name: /Sep 25/ })).toContainText(
+    "5",
+  );
+  await expect(nutrients.getByRole("row", { name: /Sep 26/ })).toContainText(
+    "0*",
+  );
+  await expect(nutrients.getByRole("row", { name: /Sep 26/ })).toContainText(
+    "Not recorded",
+  );
+  await nutrients.locator("summary").click();
   const nutrientSelect = page.getByRole("combobox", {
     name: "Nutrient",
     exact: true,
@@ -106,10 +134,11 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await nutrientSelect.selectOption("iron");
   await expect(nutrients.locator(".progress-big")).toContainText("0");
   await page.getByRole("button", { name: "Fiber", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "Body measurement" })
-    .selectOption("waist");
-  await expect(page.getByText("No waist recorded yet.")).toBeVisible();
+  await expect(
+    page
+      .getByRole("combobox", { name: "Body measurement" })
+      .locator('option[value="waist"]'),
+  ).toHaveCount(0);
   await page
     .getByRole("combobox", { name: "Body measurement" })
     .selectOption("weight");

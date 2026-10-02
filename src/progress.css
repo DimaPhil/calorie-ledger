@@ -120,15 +120,24 @@
   background: #e6eddd;
   border-color: #c7d7bb;
 }
+.progress-select {
+  min-width: 0;
+}
 .progress-select select {
-  padding: 7px 9px;
-  max-width: 155px;
+  appearance: none;
+  min-height: 44px;
+  padding: 10px 38px 10px 14px;
+  width: auto;
+  max-width: 100%;
   border: 1px solid #dce1d6;
   border-radius: 8px;
   background: #fafbf7;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2353654e' stroke-width='1.5'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
 }
 .progress-nutrient-shortcuts {
   margin-top: 12px;
@@ -299,10 +308,10 @@
   }
   .progress-select select {
     font-size: 16px;
-    max-width: 142px;
   }
   .progress-panel-heading {
     gap: 10px;
+    flex-wrap: wrap;
   }
   .progress-big {
     font-size: 32px;
