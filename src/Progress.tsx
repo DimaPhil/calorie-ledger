@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
 import { useI18n, localizeLabel, localizeError } from "./i18n.js";
-import { action, type Stats, type Nutrients } from "./shared";
+import { action, nutrientLabels, type Stats, type Nutrients } from "./shared";
+import { nutritionProgress } from "./progress-data.js";
+import { ExportData } from "./ExportData.js";
 import {
   defaultGoals,
   metricDefinitions,
@@ -233,10 +235,10 @@ function Chart({
                     <td>{p.target === undefined ? "—" : format(p.target)}</td>
                   )}
                   <td>
-                    {p.value === undefined
-                      ? t("Not recorded", "Нет записи")
-                      : p.partial
-                        ? t("Missing nutrition", "Неполные данные о питании")
+                    {p.partial
+                      ? t("Missing nutrition", "Неполные данные о питании")
+                      : p.value === undefined
+                        ? t("Not recorded", "Нет записи")
                         : bars
                           ? p.complete
                             ? t("Complete", "Завершён")
@@ -434,22 +436,20 @@ export function Progress({
     [...goals.history]
       .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))
       .find((g) => g.effectiveDate <= date)?.targets ?? defaultGoals;
-  const foodPoints = (key: string): Point[] =>
-    days.map((day) => ({
-      date: day.date,
-      value: day.count ? day.nutrients[key as keyof Nutrients] : undefined,
-      target: targets(day.date)[key],
-      complete: checkin(day.date)?.complete ?? false,
-      partial: stats.entries
-        .filter((e) => e.date === day.date)
-        .some((e) =>
-          e.items.some(
-            (item) => item.nutrients[key as keyof Nutrients] === undefined,
-          ),
-        ),
+  const nutrition = nutritionProgress(stats);
+  const selectedNutrient = nutrition.available.includes(
+    nutrient as keyof Nutrients,
+  )
+    ? (nutrient as keyof Nutrients)
+    : nutrition.available[0];
+  const foodPoints = (key: keyof Nutrients): Point[] =>
+    nutrition.series[key].map((point) => ({
+      ...point,
+      target: targets(point.date)[key],
+      complete: checkin(point.date)?.complete ?? false,
     }));
   const caloriePoints = foodPoints("calories");
-  const nutrientPoints = foodPoints(nutrient);
+  const nutrientPoints = selectedNutrient ? foodPoints(selectedNutrient) : [];
   const average = (points: Point[]) =>
     mean(
       points
@@ -461,9 +461,19 @@ export function Progress({
       .length;
   const completeCount = days.filter((d) => checkin(d.date)?.complete).length;
   const recordedCount = days.filter((d) => checkin(d.date)).length;
-  const nutrientDef = metricDefinitions.find((m) => m.key === nutrient)!;
-  const nutrientLabel = localizeLabel(nutrientDef.label, language);
-  const nutrientUnit = localizeLabel(nutrientDef.unit, language);
+  const nutrientDef = metricDefinitions.find((m) => m.key === selectedNutrient);
+  const nutrientName = (key: keyof Nutrients) =>
+    nutrientLabels[key].split(" (")[0];
+  const nutrientLabel = selectedNutrient
+    ? localizeLabel(nutrientName(selectedNutrient), language)
+    : "";
+  const nutrientUnit = selectedNutrient
+    ? localizeLabel(
+        nutrientDef?.unit ??
+          nutrientLabels[selectedNutrient].match(/\(([^)]+)\)/)![1],
+        language,
+      )
+    : "";
   const bodyPoints: Point[] = days.map((day) => ({
     date: day.date,
     value: checkin(day.date)?.[body as "weight" | "waist"],
@@ -600,57 +610,108 @@ export function Progress({
             </span>
           </div>
         </section>
-        <section className="panel">
-          <div className="progress-panel-heading">
-            <div>
-              <span className="progress-eyebrow">
-                {t("Nutrition consistency", "Регулярность питания")}
-              </span>
-              <h2>{t("Nutrients over days", "Нутриенты по дням")}</h2>
+        <section
+          className="panel"
+          aria-label={t("Nutrients over days", "Нутриенты по дням")}
+        >
+          <div className="progress-nutrient-heading">
+            <div className="progress-panel-heading">
+              <div>
+                <span className="progress-eyebrow">
+                  {t("Nutrition consistency", "Регулярность питания")}
+                </span>
+                <h2>{t("Nutrients over days", "Нутриенты по дням")}</h2>
+              </div>
+              {selectedNutrient && (
+                <label className="progress-select">
+                  <span className="sr-only">{t("Nutrient", "Нутриент")}</span>
+                  <select
+                    value={selectedNutrient}
+                    onChange={(e) => setNutrient(e.target.value)}
+                  >
+                    {nutrition.available.map((key) => (
+                      <option key={key} value={key}>
+                        {localizeLabel(nutrientName(key), language)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
-            <label className="progress-select">
-              <span className="sr-only">{t("Nutrient", "Нутриент")}</span>
-              <select
-                value={nutrient}
-                onChange={(e) => setNutrient(e.target.value)}
-              >
-                {metricDefinitions
-                  .filter((m) => m.source === "food" && m.key !== "calories")
-                  .map((m) => (
-                    <option key={m.key} value={m.key}>
-                      {localizeLabel(m.label, language)}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
-          <div className="progress-big">
-            {average(nutrientPoints) === undefined
-              ? "—"
-              : format(average(nutrientPoints)!)}
-            <small>
-              {" "}
-              {nutrientUnit}
-              {t(" / day", " / день")}
-            </small>
-          </div>
-          <p>
-            {t(
-              `Average from ${knownCount(nutrientPoints)} complete days with fully known ${nutrientDef.label.toLowerCase()}. Dashed line: `,
-              `Среднее по завершённым дням с полными данными (${nutrientLabel.toLowerCase()}): ${knownCount(nutrientPoints)}. Пунктир: `,
+            <div
+              className="progress-ranges progress-nutrient-shortcuts"
+              role="group"
+              aria-label={t("Quick nutrients", "Основные нутриенты")}
+            >
+              {(["protein", "fat", "carbs", "fiber"] as const)
+                .filter((key) => nutrition.available.includes(key))
+                .map((key) => (
+                  <button
+                    key={key}
+                    aria-pressed={selectedNutrient === key}
+                    onClick={() => setNutrient(key)}
+                  >
+                    {localizeLabel(nutrientName(key), language)}
+                  </button>
+                ))}
+            </div>
+            {!nutrition.available.includes("fiber") && (
+              <p className="progress-coverage">
+                {t(
+                  "Fiber charts appear when every food logged on at least one day has a fiber value.",
+                  "График клетчатки появится, когда её значение будет известно для всех продуктов хотя бы одного дня.",
+                )}
+              </p>
             )}
-            {nutrientDef.kind === "limit"
-              ? t("upper limit", "верхний лимит")
-              : t("daily target", "дневная цель")}
-            .
-          </p>
-          <Chart
-            title={nutrientLabel}
-            unit={nutrientUnit}
-            points={nutrientPoints}
-            bars
-            onDay={onDay}
-          />
+          </div>
+          {selectedNutrient ? (
+            <>
+              <div className="progress-big">
+                {average(nutrientPoints) === undefined
+                  ? "—"
+                  : format(average(nutrientPoints)!)}
+                <small>
+                  {" "}
+                  {nutrientUnit}
+                  {t(" / day", " / день")}
+                </small>
+              </div>
+              <p>
+                {t(
+                  `${nutrientPoints.filter((p) => p.value !== undefined).length} of ${nutrition.loggedDays} logged days have complete nutrient data. Missing totals stay empty. `,
+                  `Дней с полными данными о нутриенте: ${nutrientPoints.filter((p) => p.value !== undefined).length} из ${nutrition.loggedDays} дней с записями. Неполные суммы не отображаются. `,
+                )}
+                {t(
+                  `Average from ${knownCount(nutrientPoints)} complete days with fully known ${nutrientLabel.toLowerCase()}.`,
+                  `Среднее по завершённым дням с полными данными (${nutrientLabel.toLowerCase()}): ${knownCount(nutrientPoints)}.`,
+                )}
+                {nutrientDef && (
+                  <>
+                    {" "}
+                    {t("Dashed line: ", "Пунктир: ")}
+                    {nutrientDef.kind === "limit"
+                      ? t("upper limit", "верхний лимит")
+                      : t("daily target", "дневная цель")}
+                    .
+                  </>
+                )}
+              </p>
+              <Chart
+                title={nutrientLabel}
+                unit={nutrientUnit}
+                points={nutrientPoints}
+                bars
+                onDay={onDay}
+              />
+            </>
+          ) : (
+            <p>
+              {t(
+                "No complete nutrient totals for the selected period. Add missing food nutrition to make charts available.",
+                "Нет полных сумм нутриентов за выбранный период. Добавьте недостающие данные о питании продуктов, чтобы появились графики.",
+              )}
+            </p>
+          )}
         </section>
         <section className="panel">
           <div className="progress-panel-heading">
@@ -758,6 +819,7 @@ export function Progress({
           "Цели соответствуют настройкам, действовавшим в каждый день. Средние показатели питания исключают незавершённые дни и пропущенные значения. Прогресс отражает записи и не изменяет ваши цели автоматически.",
         )}
       </p>
+      <ExportData />
     </section>
   );
 }

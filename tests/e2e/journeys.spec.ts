@@ -468,6 +468,8 @@ test("food → dish → custom meal → statistics → token lifecycle", async (
       .locator(".entry-energy"),
   ).toContainText("400");
   for (const period of ["Week", "Month", "Custom", "Today"]) {
+    // Anchor each view to today: a week can start in the previous month.
+    await page.getByRole("button", { name: "Today", exact: true }).click();
     await page.getByRole("button", { name: period, exact: true }).click();
     await expect(page.locator(".entries")).toBeVisible();
   }
