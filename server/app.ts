@@ -18,6 +18,7 @@ import {
 } from "./auth.js";
 import { actionSchemas, type Action } from "../src/shared.js";
 import { Service } from "./service.js";
+import { exportAccount } from "./export.js";
 import { AppError } from "./nutrition.js";
 import { externalSearch, type Provider } from "./search.js";
 
@@ -223,6 +224,18 @@ export function createApp(
       id,
     ]);
     res.json({ ok: true });
+  });
+  app.get("/api/export", async (req, res) => {
+    const user = await authenticate(database, req);
+    const format = z.enum(["csv", "markdown"]).parse(req.query.format);
+    await limit(database, `export:${user.id}`, 10);
+    const exported = await exportAccount(database, user, format);
+    res.setHeader("Content-Type", exported.contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${exported.filename}"`,
+    );
+    res.send(exported.body);
   });
   app.post("/api/actions/:action", async (req, res) => {
     const user = await authenticate(database, req);

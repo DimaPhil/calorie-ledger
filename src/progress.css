@@ -130,6 +130,20 @@
   font: inherit;
   font-size: 13px;
 }
+.progress-nutrient-shortcuts {
+  margin-top: 12px;
+  width: fit-content;
+}
+.progress-nutrient-shortcuts:empty {
+  display: none;
+}
+.progress-nutrient-shortcuts button {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.progress-coverage {
+  margin-bottom: 0;
+}
 .progress-figure {
   margin: 0;
 }

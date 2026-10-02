@@ -1356,6 +1356,19 @@ pre {
     font-size: 13px;
   }
 }
+.export-panel {
+  margin-top: 24px;
+  align-self: start;
+}
+.export-panel > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

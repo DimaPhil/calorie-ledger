@@ -1,5 +1,6 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { readFile } from "node:fs/promises";
 
 export async function checkProgress(page: Page, info: TestInfo) {
   await page.clock.setFixedTime(new Date("2026-10-01T19:00:00Z"));
@@ -14,7 +15,7 @@ export async function checkProgress(page: Page, info: TestInfo) {
   const product = await post("save_product", {
     product: {
       name: `Progress ${info.project.name}`,
-      nutrients: { calories: 1000, protein: 80 },
+      nutrients: { calories: 1000, protein: 80, fiber: 10, iron: 0 },
     },
   });
   // Other journeys share this isolated test account and may have logged today.
@@ -91,10 +92,20 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await expect(calories.getByRole("row", { name: /Sep 26/ })).toContainText(
     "Not recorded",
   );
-  await page
-    .getByRole("combobox", { name: "Nutrient", exact: true })
-    .selectOption("fiber");
-  await expect(page.getByText("No fiber recorded yet.")).toBeVisible();
+  await page.getByRole("button", { name: "Fiber", exact: true }).click();
+  const nutrients = page.getByRole("region", { name: "Nutrients over days" });
+  await expect(nutrients.locator(".progress-big")).toContainText("15");
+  await expect(nutrients).toContainText(
+    "3 of 3 logged days have complete nutrient data",
+  );
+  const nutrientSelect = page.getByRole("combobox", {
+    name: "Nutrient",
+    exact: true,
+  });
+  await expect(nutrientSelect.locator('option[value="sodium"]')).toHaveCount(0);
+  await nutrientSelect.selectOption("iron");
+  await expect(nutrients.locator(".progress-big")).toContainText("0");
+  await page.getByRole("button", { name: "Fiber", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Body measurement" })
     .selectOption("waist");
@@ -111,6 +122,23 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await expect(page.getByRole("button", { name: /Sep 24:/ })).toHaveCount(0);
   await page.getByRole("button", { name: "90 days", exact: true }).click();
   await expect(calories).toContainText("Average from 2 complete days");
+  await page.locator(".export-panel > summary").click();
+  for (const [button, extension] of [
+    ["Download CSV (.zip)", ".zip"],
+    ["Download Markdown", ".md"],
+  ]) {
+    const downloaded = page.waitForEvent("download");
+    await page.getByRole("button", { name: button, exact: true }).click();
+    const file = await downloaded;
+    expect(file.suggestedFilename().endsWith(extension)).toBe(true);
+    const bytes = await readFile((await file.path())!);
+    if (extension === ".zip")
+      expect(bytes.subarray(0, 2).toString()).toBe("PK");
+    else {
+      expect(bytes.toString()).toContain("2026-09-23");
+      expect(bytes.toString()).toContain(product.name);
+    }
+  }
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({
     path: info.outputPath("phone-progress.png"),

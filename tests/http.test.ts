@@ -39,6 +39,24 @@ afterAll(async () => {
   await database.close();
 });
 describe("authentication and web API", () => {
+  it("exports authenticated account data as private downloads and validates format", async () => {
+    expect((await request(app).get("/api/export?format=csv")).status).toBe(401);
+    expect(
+      (await request(app).get("/api/export?format=bad").set("Cookie", cookie))
+        .status,
+    ).toBe(422);
+    for (const format of ["csv", "markdown"]) {
+      const response = await request(app)
+        .get(`/api/export?format=${format}`)
+        .set("Cookie", cookie);
+      expect(response.status).toBe(200);
+      expect(response.headers["content-disposition"]).toContain("attachment;");
+      expect(response.headers["cache-control"]).toContain("no-store");
+      expect(response.headers["content-type"]).toContain(
+        format === "csv" ? "application/zip" : "text/markdown",
+      );
+    }
+  });
   it("uses secure password hashing and rejects bad account credentials", async () => {
     const hashed = await passwordHash("secret");
     expect(hashed).not.toContain("secret");

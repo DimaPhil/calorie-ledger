@@ -13,6 +13,7 @@ import {
 import { DateTime } from "luxon";
 import { GoalsDashboard, GoalAdmin } from "./Goals.js";
 import { Progress } from "./Progress.js";
+import { ExportData } from "./ExportData.js";
 import { Modal } from "./Modal.js";
 import {
   useI18n,
@@ -2292,6 +2293,7 @@ function Settings({
   }, []);
   return (
     <div className="settings-grid">
+      <ExportData />
       <section className="panel">
         <h2>{t("Preferences", "Настройки")}</h2>
         <form
