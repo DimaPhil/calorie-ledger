@@ -154,7 +154,10 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await expect(calories).toContainText("Average from 2 complete days");
   await page.locator(".export-panel > summary").click();
   await page.getByText("AI nutrition analysis prompt", { exact: true }).click();
-  const prompt = page.getByLabel("Analysis prompt", { exact: true });
+  const prompt = page.getByRole("textbox", {
+    name: "Analysis prompt",
+    exact: true,
+  });
   await expect(prompt).toHaveValue(analysisPrompt);
   await page.getByRole("button", { name: "Copy prompt", exact: true }).click();
   await expect(page.getByRole("status")).toContainText(
