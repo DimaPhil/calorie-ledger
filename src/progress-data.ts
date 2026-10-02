@@ -1,6 +1,6 @@
 import { nutrientKeys, type Stats } from "./shared.js";
 
-// A known subtotal is not a daily total: every recorded component must supply it.
+// Keep known subtotals visible, but mark missing components as incomplete.
 export function nutritionProgress(stats: Stats) {
   const entriesByDay = new Map<string, Stats["entries"]>();
   for (const entry of stats.entries) {
@@ -24,7 +24,10 @@ export function nutritionProgress(stats: Stats) {
         return {
           date: day.date,
           value:
-            day.count && (!partial || key === "calories")
+            day.count &&
+            entries.some((entry) =>
+              entry.items.some((item) => item.nutrients[key] !== undefined),
+            )
               ? day.nutrients[key]
               : undefined,
           partial,

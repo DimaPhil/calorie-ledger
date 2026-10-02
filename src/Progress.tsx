@@ -114,32 +114,38 @@ function Chart({
                       className="progress-target"
                     />
                   )}
-                {p.value !== undefined && (
+                {(p.value !== undefined || bars) && (
                   <>
                     {!bars && i > 0 && points[i - 1].value !== undefined && (
                       <line
                         x1={x(i - 1)}
                         y1={y(points[i - 1].value!)}
                         x2={x(i)}
-                        y2={y(p.value)}
+                        y2={y(p.value!)}
                         className="progress-line"
                       />
                     )}
                     {bars ? (
                       <rect
                         x={x(i) - Math.min(13, 170 / points.length)}
-                        y={Math.min(y(p.value), 172)}
+                        y={Math.min(y(p.value ?? 0), 172)}
                         width={Math.min(26, 340 / points.length)}
-                        height={Math.max(2, 174 - y(p.value))}
+                        height={Math.max(2, 174 - y(p.value ?? 0))}
                         rx="3"
                         className={
-                          p.complete && !p.partial
+                          p.value !== undefined && p.complete && !p.partial
                             ? "progress-bar"
                             : "progress-bar progress-bar-partial"
                         }
                       >
                         <title>
-                          {label(p.date)}: {format(p.value)} {unit}
+                          {label(p.date)}: {format(p.value ?? 0)} {unit}
+                          {p.value === undefined
+                            ? t(
+                                " · not recorded (display fallback)",
+                                " · нет данных (ноль для отображения)",
+                              )
+                            : ""}
                           {p.partial
                             ? t(
                                 " · incomplete nutrition",
@@ -154,12 +160,12 @@ function Chart({
                     ) : (
                       <circle
                         cx={x(i)}
-                        cy={y(p.value)}
+                        cy={y(p.value!)}
                         r="4"
                         className="progress-dot"
                       >
                         <title>
-                          {label(p.date)}: {format(p.value)} {unit}
+                          {label(p.date)}: {format(p.value!)} {unit}
                         </title>
                       </circle>
                     )}
@@ -230,7 +236,13 @@ function Chart({
                       {label(p.date)}
                     </button>
                   </th>
-                  <td>{p.value === undefined ? "—" : format(p.value)}</td>
+                  <td>
+                    {p.value === undefined
+                      ? bars
+                        ? "0*"
+                        : "—"
+                      : format(p.value)}
+                  </td>
                   {points.some((d) => d.target !== undefined) && (
                     <td>{p.target === undefined ? "—" : format(p.target)}</td>
                   )}
@@ -277,8 +289,8 @@ export function Progress({
     end: today,
   });
   const [nutrient, setNutrient] = useState("protein");
-  const [recovery, setRecovery] = useState("sleep");
-  const [body, setBody] = useState("weight");
+  const [recoveryChoice, setRecovery] = useState("sleep");
+  const [bodyChoice, setBody] = useState("weight");
   const [data, setData] = useState<{ stats: Stats; goals: GoalsData } | null>(
     null,
   );
@@ -432,6 +444,18 @@ export function Progress({
   const { stats, goals } = data;
   const days = stats.days;
   const checkin = (date: string) => goals.checkins.find((c) => c.date === date);
+  const bodyOptions = (["weight", "waist"] as const).filter((key) =>
+    goals.checkins.some((c) => c[key] !== undefined),
+  );
+  const recoveryOptions = (["sleep", "beverages", "energy"] as const).filter(
+    (key) => goals.checkins.some((c) => c[key] !== undefined),
+  );
+  const body =
+    bodyOptions.find((key) => key === bodyChoice) ?? bodyOptions[0] ?? "weight";
+  const recovery =
+    recoveryOptions.find((key) => key === recoveryChoice) ??
+    recoveryOptions[0] ??
+    "sleep";
   const targets = (date: string) =>
     [...goals.history]
       .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))
@@ -658,8 +682,8 @@ export function Progress({
             {!nutrition.available.includes("fiber") && (
               <p className="progress-coverage">
                 {t(
-                  "Fiber charts appear when every food logged on at least one day has a fiber value.",
-                  "График клетчатки появится, когда её значение будет известно для всех продуктов хотя бы одного дня.",
+                  "Fiber charts appear when a logged food has a known fiber value.",
+                  "График клетчатки появится, когда её значение будет известно хотя бы для одного записанного продукта.",
                 )}
               </p>
             )}
@@ -678,8 +702,8 @@ export function Progress({
               </div>
               <p>
                 {t(
-                  `${nutrientPoints.filter((p) => p.value !== undefined).length} of ${nutrition.loggedDays} logged days have complete nutrient data. Missing totals stay empty. `,
-                  `Дней с полными данными о нутриенте: ${nutrientPoints.filter((p) => p.value !== undefined).length} из ${nutrition.loggedDays} дней с записями. Неполные суммы не отображаются. `,
+                  `${nutrientPoints.filter((p) => p.value !== undefined && !p.partial).length} of ${nutrition.loggedDays} logged days have complete nutrient data. Outlined bars show known subtotals for incomplete days. Unknown values are not zero. `,
+                  `Дней с полными данными о нутриенте: ${nutrientPoints.filter((p) => p.value !== undefined && !p.partial).length} из ${nutrition.loggedDays} дней с записями. Контурные столбцы показывают известные суммы за неполные дни. Неизвестные значения не равны нулю. `,
                 )}
                 {t(
                   `Average from ${knownCount(nutrientPoints)} complete days with fully known ${nutrientLabel.toLowerCase()}.`,
@@ -707,8 +731,8 @@ export function Progress({
           ) : (
             <p>
               {t(
-                "No complete nutrient totals for the selected period. Add missing food nutrition to make charts available.",
-                "Нет полных сумм нутриентов за выбранный период. Добавьте недостающие данные о питании продуктов, чтобы появились графики.",
+                "No nutrient values recorded for the selected period. Add food nutrition to make charts available.",
+                "Нет значений нутриентов за выбранный период. Добавьте данные о питании продуктов, чтобы появились графики.",
               )}
             </p>
           )}
@@ -726,8 +750,13 @@ export function Progress({
                 {t("Body measurement", "Показатель тела")}
               </span>
               <select value={body} onChange={(e) => setBody(e.target.value)}>
-                <option value="weight">{t("Weight", "Вес")}</option>
-                <option value="waist">{t("Waist", "Талия")}</option>
+                {(bodyOptions.length ? bodyOptions : ["weight"]).map((key) => (
+                  <option key={key} value={key}>
+                    {key === "weight"
+                      ? t("Weight", "Вес")
+                      : t("Waist", "Талия")}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -774,9 +803,17 @@ export function Progress({
                 value={recovery}
                 onChange={(e) => setRecovery(e.target.value)}
               >
-                <option value="sleep">{t("Sleep", "Сон")}</option>
-                <option value="beverages">{t("Drinks", "Напитки")}</option>
-                <option value="energy">{t("Wellbeing", "Самочувствие")}</option>
+                {(recoveryOptions.length ? recoveryOptions : ["sleep"]).map(
+                  (key) => (
+                    <option key={key} value={key}>
+                      {key === "sleep"
+                        ? t("Sleep", "Сон")
+                        : key === "beverages"
+                          ? t("Drinks", "Напитки")
+                          : t("Wellbeing", "Самочувствие")}
+                    </option>
+                  ),
+                )}
               </select>
             </label>
           </div>
@@ -815,8 +852,8 @@ export function Progress({
       </div>
       <p className="progress-footnote">
         {t(
-          "Targets follow the settings effective on each day. Nutrition averages exclude unfinished days and missing values. Progress is a record, not an automatic adjustment to your goals.",
-          "Цели соответствуют настройкам, действовавшим в каждый день. Средние показатели питания исключают незавершённые дни и пропущенные значения. Прогресс отражает записи и не изменяет ваши цели автоматически.",
+          "Targets follow the settings effective on each day. 0* is a display fallback for missing nutrition, not a recorded zero. Nutrition averages exclude unfinished days and missing values. Progress does not adjust your goals automatically.",
+          "Цели соответствуют настройкам каждого дня. 0* — ноль для отображения пропущенных данных о питании, а не записанное значение. Средние исключают незавершённые дни и пропуски. Прогресс не изменяет ваши цели автоматически.",
         )}
       </p>
       <ExportData />

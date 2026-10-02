@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { nutritionProgress } from "../src/progress-data.js";
 import type { Entry, Stats } from "../src/shared.js";
 
-it("charts only fully known daily nutrient totals, preserving zero and gaps", () => {
+it("charts known subtotals as partial, preserving zero and unknown gaps", () => {
   const stats: Stats = {
     start: "2026-09-24",
     end: "2026-09-26",
@@ -40,7 +40,7 @@ it("charts only fully known daily nutrient totals, preserving zero and gaps", ()
   expect(result.loggedDays).toBe(2);
   expect(result.series.fiber.map((point) => point.value)).toEqual([
     0,
-    undefined,
+    3,
     undefined,
   ]);
   expect(result.series.fiber[1].partial).toBe(true);
@@ -48,14 +48,14 @@ it("charts only fully known daily nutrient totals, preserving zero and gaps", ()
     value: 200,
     partial: true,
   });
-  // Changing the selected period must remove metrics whose only reliable day left the view.
+  // A period with only partial values still offers these nutrients.
   expect(
     nutritionProgress({
       ...stats,
       days: stats.days.slice(1),
       entries: stats.entries.slice(1),
     }).available,
-  ).toEqual([]);
+  ).toEqual(["fiber", "cholesterol"]);
 });
 
 it("does not advertise totals when component records are absent", () => {
