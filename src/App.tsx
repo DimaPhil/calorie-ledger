@@ -2293,7 +2293,6 @@ function Settings({
   }, []);
   return (
     <div className="settings-grid">
-      <ExportData />
       <section className="panel">
         <h2>{t("Preferences", "Настройки")}</h2>
         <form
@@ -2513,6 +2512,7 @@ function Settings({
           )}
         </small>
       </section>
+      <ExportData />
     </div>
   );
 }
