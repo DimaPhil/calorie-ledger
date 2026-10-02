@@ -7,6 +7,7 @@ import {
   type Entry,
 } from "../src/shared.js";
 import { defaultGoals, metricDefinitions } from "../src/goals-shared.js";
+import { analysisPrompt } from "../src/analysis-prompt.js";
 
 type Row = Record<string, unknown>;
 type Table = { name: string; columns: string[]; rows: Row[] };
@@ -388,6 +389,7 @@ export async function exportAccount(
     return {
       body: zip([
         { name: "README.md", body: readme },
+        { name: "AI_ANALYSIS_PROMPT.md", body: analysisPrompt },
         ...tables.map((t) => ({
           name: t.name + ".csv",
           body:
@@ -404,6 +406,8 @@ export async function exportAccount(
     };
   return {
     body:
+      analysisPrompt +
+      "\n---\n\n" +
       readme +
       tables
         .map(

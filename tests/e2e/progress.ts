@@ -1,6 +1,7 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
+import { analysisPrompt } from "../../src/analysis-prompt.js";
 
 export async function checkProgress(page: Page, info: TestInfo) {
   await page.clock.setFixedTime(new Date("2026-10-01T19:00:00Z"));
@@ -152,6 +153,31 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await page.getByRole("button", { name: "90 days", exact: true }).click();
   await expect(calories).toContainText("Average from 2 complete days");
   await page.locator(".export-panel > summary").click();
+  await page.getByText("AI nutrition analysis prompt", { exact: true }).click();
+  const prompt = page.getByLabel("Analysis prompt", { exact: true });
+  await expect(prompt).toHaveValue(analysisPrompt);
+  await page.getByRole("button", { name: "Copy prompt", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText(
+    /Prompt copied|Text selected/,
+  );
+  // Clipboard denial must leave the full prompt selectable rather than silently fail.
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error("Clipboard denied");
+        },
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "Copy prompt", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Text selected");
+  expect(
+    await prompt.evaluate(
+      (node: HTMLTextAreaElement) => node.selectionEnd - node.selectionStart,
+    ),
+  ).toBe(analysisPrompt.length);
   for (const [button, extension] of [
     ["Download CSV (.zip)", ".zip"],
     ["Download Markdown", ".md"],
@@ -164,6 +190,7 @@ export async function checkProgress(page: Page, info: TestInfo) {
     if (extension === ".zip")
       expect(bytes.subarray(0, 2).toString()).toBe("PK");
     else {
+      expect(bytes.toString().startsWith(analysisPrompt)).toBe(true);
       expect(bytes.toString()).toContain("2026-09-23");
       expect(bytes.toString()).toContain(product.name);
     }
