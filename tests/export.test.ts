@@ -6,6 +6,7 @@ import { createUser } from "../server/auth.js";
 import { Service } from "../server/service.js";
 import { exportAccount } from "../server/export.js";
 import { defaultGoals } from "../src/goals-shared.js";
+import { analysisPrompt } from "../src/analysis-prompt.js";
 import type { User } from "../src/shared.js";
 
 let database: Awaited<ReturnType<typeof testDatabase>>,
@@ -133,7 +134,8 @@ it("exports all history, coverage, targets and source data in a valid CSV ZIP", 
   expect(exported.contentType).toBe("application/zip");
   expect(exported.filename).toMatch(/\.zip$/);
   const files = unpack(exported.body);
-  expect(Object.keys(files)).toHaveLength(12);
+  expect(Object.keys(files)).toHaveLength(13);
+  expect(files["AI_ANALYSIS_PROMPT.md"]).toBe(analysisPrompt);
   const daily = files["daily.csv"] as Record<string, string>[];
   expect(daily).toHaveLength(403);
   const incomplete = daily.find((row) => row.date === "2024-01-01")!;
@@ -200,6 +202,7 @@ it("renders the same data as safe Markdown with preserved Unicode and metadata",
   expect(exported.contentType).toBe("text/markdown; charset=utf-8");
   expect(exported.filename).toMatch(/\.md$/);
   const body = String(exported.body);
+  expect(body.startsWith(analysisPrompt)).toBe(true);
   expect(body).toContain("Яблоко");
   expect(body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;&#124;line");
   expect(body).not.toContain("<script>");

@@ -1369,6 +1369,14 @@ pre {
   flex-wrap: wrap;
   gap: 12px;
 }
+.analysis-prompt {
+  margin-top: 20px;
+}
+.analysis-prompt textarea {
+  margin-bottom: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

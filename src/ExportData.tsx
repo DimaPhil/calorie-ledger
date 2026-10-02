@@ -1,10 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n, localizeError } from "./i18n.js";
+import { analysisPrompt } from "./analysis-prompt.js";
 
 export function ExportData() {
   const { t, language } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [copyStatus, setCopyStatus] = useState<"copied" | "manual" | null>(
+    null,
+  );
+  const promptField = useRef<HTMLTextAreaElement>(null);
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(analysisPrompt);
+      setCopyStatus("copied");
+    } catch {
+      promptField.current?.focus();
+      promptField.current?.select();
+      setCopyStatus("manual");
+    }
+  }
   const pending = useRef<AbortController | null>(null);
   useEffect(() => () => pending.current?.abort(), []);
   async function download(format: "csv" | "markdown") {
@@ -62,6 +77,42 @@ export function ExportData() {
           {t("Download Markdown", "Скачать Markdown")}
         </button>
       </div>
+      <details className="analysis-prompt">
+        <summary>
+          {t("AI nutrition analysis prompt", "Промпт для анализа питания с ИИ")}
+        </summary>
+        <p>
+          {t(
+            "Attach your export to GPT-6 Pro and paste this prompt. It asks for a concise 4–8 week plan with specific meals, variety and Bay Area shopping ideas. Add your current training, preferences and constraints before sending. The same prompt is included in both downloads.",
+            "Прикрепите экспорт к GPT-6 Pro и вставьте этот промпт. Он запрашивает краткий план на 4–8 недель с конкретными блюдами, разнообразием и покупками в Bay Area. Перед отправкой добавьте актуальные тренировки, предпочтения и ограничения. Тот же промпт включён в оба формата экспорта.",
+          )}
+        </p>
+        <label>
+          <span className="sr-only">
+            {t("Analysis prompt", "Промпт для анализа")}
+          </span>
+          <textarea
+            ref={promptField}
+            readOnly
+            rows={12}
+            value={analysisPrompt}
+            spellCheck={false}
+          />
+        </label>
+        <button onClick={() => void copyPrompt()}>
+          {t("Copy prompt", "Скопировать промпт")}
+        </button>
+        {copyStatus && (
+          <p role="status">
+            {copyStatus === "copied"
+              ? t("Prompt copied.", "Промпт скопирован.")
+              : t(
+                  "Text selected. Copy it manually using your device’s copy command.",
+                  "Текст выделен. Скопируйте его вручную на вашем устройстве.",
+                )}
+          </p>
+        )}
+      </details>
       {busy && (
         <p role="status">{t("Preparing export…", "Подготовка экспорта…")}</p>
       )}
