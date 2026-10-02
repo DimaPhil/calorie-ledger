@@ -1862,7 +1862,7 @@ function EntryRow({
             </small>
             {entry.notes && <small>{entry.notes}</small>}
             <small>
-              {t("View details &amp; edit →", "Подробности и редактирование →")}
+              {t("View details & edit →", "Подробности и редактирование →")}
             </small>
           </span>
           <span className="entry-energy">
