@@ -1,0 +1,41 @@
+{
+  "skill_name": "audit-food-nutrition",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Synthetic read-only audit, no tools or writes needed. Saved plain cereal is per 100g: calories 120, protein 4, carbs 20, fat 2; all other nutrient keys absent. Exact package transcription per 30g serving: 120 kcal, protein 4g, carbs 20g, fat 2g, fiber 3g, sodium 90mg, added sugar 0g. All other fields are not printed. Audit every current nutrient field, provide proposed changes and unresolved fields, and explain whether we can make all blanks zero. Treat the transcription as supplied fixture evidence, not a real web source.",
+      "expected_output": "Correct per100g conversion, label zero preserved, omitted nutrients unresolved, all18 keys accounted for; no fabricated citations or writes.",
+      "files": [],
+      "expectations": [
+        "Computes calories400, protein13.333..., carbs66.666..., fat6.666..., fiber10, sodium300 per100g.",
+        "Sets addedSugar0 from the supplied label but leaves unprinted micronutrients and freeSugar unresolved.",
+        "Accounts for all18 nutrient fields and does not claim the fixture is independently web-verified.",
+        "Does not apply a migration or fill missing values with blanket zeros."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Synthetic read-only audit. Saved item is cooked jasmine rice per100g, with calories130 protein2.7 carbs28 fat0.3; fiber and micronutrients missing. The manufacturer page supplied here only describes DRY rice: per45g, calories160 protein3 carbs36 fat0 fiber0 sodium0. No cooked yield is known. Another saved item says 'vanilla Greek yogurt' without brand or fat percentage; a source describes plain nonfat Greek yogurt. I want no blanks. Recommend exact safe patches and describe what evidence is still needed; no browsing or writes in this fixture.",
+      "expected_output": "Rejects dry-to-cooked and different-yogurt substitution without evidence/authorization, retains current values as unverified, requests relevant label/yield/identity, no blanket zero fill.",
+      "files": [],
+      "expectations": [
+        "Does not use the dry rice numbers as cooked per100g nutrition or invent a water absorption ratio.",
+        "Does not apply plain nonfat yogurt values to ambiguous vanilla yogurt.",
+        "Explains unsupported missing values remain unknown and names the required yield, cooked database record, or exact yogurt label.",
+        "Distinguishes retained existing values from newly verified values."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Synthetic migration design; no actual filesystem or database writes. OwnerA's productP has an evidence-backed plan before={calories100,fiber1}, after={calories110,fiber2}. At execution a user edit made calories105. ProductQ already equals its planned after state. A third product has the same name but belongs to OwnerB. P has one source-linked ordinary entry, one legacy snapshot, and one manually overridden entry. Explain the execution/retry/rollback policy and report counters. Do not claim any database command was executed.",
+      "expected_output": "Compare-and-set conflict onP; no-opQ; ownerB excluded; rollback batch on conflict if transactional; service mutation/recalculation only after resolving conflict; legacy/manual preserved; no speculative source links; honest not-run report.",
+      "files": [],
+      "expectations": [
+        "Detects P's concurrent change as a conflict without overwriting105; Q is an idempotent no-op.",
+        "Uses owner-and-ID boundaries and excludes OwnerB regardless of matching name.",
+        "Requires service-based atomic product/dependency updates; preserves legacy/manual entries and does not infer links.",
+        "Reports no execution and describes compare-current-to-applied protection for rollback."
+      ]
+    }
+  ]
+}

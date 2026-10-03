@@ -30,6 +30,17 @@ const mockResponse = (body: unknown) =>
 afterEach(() => vi.restoreAllMocks());
 
 describe("saved-food enrichment", () => {
+  it.each(["µg", "μg", "ug"])(
+    "accepts USDA vitamin D micrograms spelled %s",
+    async (unitName) => {
+      mockResponse({
+        ...detail,
+        foodNutrients: [{ nutrient: { id: 1114, unitName }, amount: 2.5 }],
+      });
+      expect((await enrichProduct(food)).product.nutrients.vitaminD).toBe(2.5);
+    },
+  );
+
   it("fills missing values from exact USDA detail while preserving corrections, metadata, and unknown free sugars", async () => {
     const fetch = mockResponse(detail);
     const result = await enrichProduct(food);
