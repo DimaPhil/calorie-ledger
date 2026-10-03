@@ -161,7 +161,7 @@ export function fromUSDA(raw: any): ProductInput | undefined {
     const mapping = usdaNutrients[n.nutrientId];
     if (
       mapping &&
-      mapping[1] === String(n.unitName).toUpperCase() &&
+      mapping[1] === String(n.unitName).replace(/[µμ]/g, "u").toUpperCase() &&
       typeof n.value === "number" &&
       n.value >= 0 &&
       Number.isFinite(n.value) &&
