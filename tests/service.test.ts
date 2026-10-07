@@ -67,6 +67,114 @@ const input = (extra: object = {}) => ({
   ...extra,
 });
 describe("food diary service", () => {
+  it("returns fresh account-local daily totals and effective targets for logs and retries", async () => {
+    const clock = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(Date.parse("2028-01-02T01:00:00Z"));
+    try {
+      const a = new Service(
+        database,
+        {
+          id: await createUser(database, "summary-la", "long-password-12345"),
+          username: "summary-la",
+          timezone: "America/Los_Angeles",
+          unitSystem: "metric",
+        },
+        provider,
+      );
+      const b = new Service(
+        database,
+        {
+          id: await createUser(database, "summary-utc", "long-password-12345"),
+          username: "summary-utc",
+          timezone: "UTC",
+          unitSystem: "metric",
+        },
+        provider,
+      );
+      const product = await a.run("save_product", {
+        product: {
+          name: "Summary oats",
+          nutrients: { calories: 200, protein: 10, carbs: 30, fat: 4 },
+        },
+      });
+      const request = {
+        productId: product.id,
+        amount: 100,
+        unit: "g",
+        date: "2028-01-01",
+        idempotencyKey: randomUUID(),
+      };
+      const goals = await a.run("get_goals", {
+        start: request.date,
+        end: request.date,
+      });
+      await a.run("save_goals", {
+        effectiveDate: request.date,
+        targets: { ...goals.settings.targets, calories: 2300, protein: 170 },
+      });
+      await a.run("save_goals", {
+        effectiveDate: "2028-01-02",
+        targets: { ...goals.settings.targets, calories: 2500 },
+      });
+      const result = await a.run("log_food", request);
+      expect(result.todayStats).toEqual({
+        date: request.date,
+        timezone: "America/Los_Angeles",
+        entryCount: 1,
+        totals: { calories: 200, protein: 10, carbs: 30, fat: 4, fiber: null },
+        targets: {
+          calories: 2300,
+          protein: 170,
+          carbs: 208,
+          fat: 70,
+          fiber: 30,
+        },
+        missingNutrients: ["fiber"],
+      });
+      const fiber = await a.run("save_product", {
+        product: {
+          name: "Fiber oats",
+          nutrients: { calories: 100, protein: 5, carbs: 15, fat: 2, fiber: 3 },
+        },
+      });
+      await a.run("log_food", {
+        ...request,
+        productId: fiber.id,
+        idempotencyKey: randomUUID(),
+      });
+      const retry = await a.run("log_food", request);
+      expect(retry.replayed).toBe(true);
+      expect(retry.todayStats).toMatchObject({
+        entryCount: 2,
+        totals: { calories: 300, protein: 15, carbs: 45, fat: 6, fiber: 3 },
+        missingNutrients: ["fiber"],
+      });
+      const historical = await a.run("log_food", {
+        ...request,
+        date: "2027-12-31",
+        idempotencyKey: randomUUID(),
+      });
+      expect(historical.todayStats).toEqual(retry.todayStats);
+      const otherProduct = await b.run("save_product", {
+        product: { name: "Other account", nutrients: { calories: 500 } },
+      });
+      const other = await b.run("log_food", {
+        ...request,
+        productId: otherProduct.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(other.todayStats).toMatchObject({
+        date: "2028-01-02",
+        timezone: "UTC",
+        entryCount: 0,
+        totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+        missingNutrients: [],
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
   it("creates reviewed menu dishes with scaled grams and saved-food nutrition, without logging", async () => {
     const recipes = await a.run("list_menu_recipes", { query: "frittata" });
     expect(

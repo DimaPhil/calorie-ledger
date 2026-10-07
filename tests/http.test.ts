@@ -253,6 +253,16 @@ describe("real MCP client pipeline", () => {
     };
     const saved = await client.callTool({ name: "log_food", arguments: args });
     expect(saved.isError).not.toBe(true);
+    const savedResult = JSON.parse(
+      (saved.content as { text: string }[])[0].text,
+    );
+    expect(savedResult.todayStats).toMatchObject({
+      timezone: "America/Los_Angeles",
+      targets: { calories: 2100, protein: 160, carbs: 208, fat: 70, fiber: 30 },
+    });
+    expect((saved.structuredContent as any).result.todayStats).toEqual(
+      savedResult.todayStats,
+    );
     expect(
       JSON.parse((saved.content as { text: string }[])[0].text).entry.nutrients
         .calories,
