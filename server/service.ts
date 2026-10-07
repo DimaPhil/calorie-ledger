@@ -718,8 +718,33 @@ export class Service {
           next: "Use preferredProductId as log_food.productId without reconfirming food identity. Include amount, unit, portionLabel if supplied, date, meal, and a stable idempotencyKey. Nothing has been logged yet.",
         };
       }
-      case "log_food":
-        return this.log(input);
+      case "log_food": {
+        const result = await this.log(input);
+        const date = DateTime.now().setZone(this.user.timezone).toISODate()!;
+        const stats = await this.stats(date, date);
+        const goals = await this.run("get_goals", { start: date, end: date });
+        const keys = ["calories", "protein", "carbs", "fat", "fiber"] as const;
+        return {
+          ...result,
+          todayStats: {
+            date,
+            timezone: this.user.timezone,
+            entryCount: stats.entries.length,
+            targets: Object.fromEntries(
+              keys.map((key) => [key, goals.settings.targets[key]]),
+            ),
+            totals: Object.fromEntries(
+              keys.map((key) => [
+                key,
+                stats.totals[key] ?? (stats.entries.length === 0 ? 0 : null),
+              ]),
+            ),
+            missingNutrients: keys.filter((key) =>
+              stats.missingNutrients.includes(key),
+            ),
+          },
+        };
+      }
       case "delete_entry":
         return this.remove("entries", input.id);
       case "update_entry": {
