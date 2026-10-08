@@ -41,7 +41,7 @@ const markdownCell = (value: unknown) =>
     .replace(/\r\n|\r|\n/g, "<br>");
 
 // Uncompressed ZIP keeps exports dependency-free; files and names are UTF-8.
-function zip(files: { name: string; body: string }[]): Buffer {
+export function zip(files: { name: string; body: string }[]): Buffer {
   const chunks: Buffer[] = [],
     directory: Buffer[] = [];
   let offset = 0;

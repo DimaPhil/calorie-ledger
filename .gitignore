@@ -1,5 +1,6 @@
 node_modules/
 dist/
+public/calorie-ledger-skill.zip
 .vercel/
 .env*
 !.env.example
