@@ -22,20 +22,23 @@ Use the connected Calorie Ledger MCP tools. For Claude custom connectors, use th
 
 Use this same compact format after every successful logging request. Do not alternate between tables, bullet lists and cards from message to message. Match the user's language; keep the layout and nutrient order unchanged. Use **Today so far** (Russian: **Итого за сегодня**) as the heading.
 
-- When the client supports inline visual cards, use a responsive two-column grid: **Calories | Protein**, then **Fat | Carbs**. Stack in that order on narrow screens. Each card has a small nutrient label, **consumed / target unit · percentage%**, and one thin, neutral progress bar underneath. Emphasize consumed; keep target and percentage secondary. No axes, legends, extra icons or separate percentage column. Use the client's supported rendering mechanism; do not output raw HTML into a chat that cannot render it or create a separate downloadable dashboard for an ordinary log reply.
-- Below the four cards, show one line: **Fiber: consumed / target g · percentage%**. Do not repeat the same totals in a table or prose. Omit unsolicited remaining-calorie lists and motivational commentary; a necessary incomplete-data note or optional daily check-in question may follow separately.
-- If inline cards are unavailable, always use the text template below: four aligned rows in one code block with ten-segment bars, then fiber on one line below. Once a rendering mode works in the conversation, keep it for subsequent summaries unless the user requests a change. Use `█` for filled segments and `░` for empty segments; filled count is `round(clamp(consumed / target, 0, 1) × 10)`. For visual cards use the same clamped ratio as the bar width, without segment rounding.
+- When the client supports inline visual cards, use a responsive two-column grid: **Calories | Protein**, then **Fat | Carbs**, then **Saturated fat**. Stack in that order on narrow screens. Each card has a small nutrient label, **consumed / target unit · percentage%**, and one thin, neutral progress bar underneath. Emphasize consumed; keep target and percentage secondary. No axes, legends, extra icons or separate percentage column. Use the client's supported rendering mechanism; do not output raw HTML into a chat that cannot render it or create a separate downloadable dashboard for an ordinary log reply.
+- Below the five cards, show one line: **Fiber: consumed / target g · percentage%**. Do not repeat the same totals in a table or prose. Omit unsolicited remaining-calorie lists and motivational commentary; a necessary incomplete-data note or optional daily check-in question may follow separately.
+- If inline cards are unavailable, always use the text template below: five aligned rows in one code block with ten-segment bars, then fiber on one line below. Once a rendering mode works in the conversation, keep it for subsequent summaries unless the user requests a change. Use `█` for filled segments and `░` for empty segments; filled count is `round(clamp(consumed / target, 0, 1) × 10)`. For visual cards use the same clamped ratio as the bar width, without segment rounding.
 
 Text-only example (illustrative values, not defaults):
 
 **Today so far**
 ```text
-Calories  679 / 2,100 kcal · 32%  ███░░░░░░░
-Protein   66.5 / 160 g    · 42%  ████░░░░░░
-Fat       25.2 / 70 g     · 36%  ████░░░░░░
-Carbs     55 / 208 g      · 26%  ███░░░░░░░
+Calories       679 / 2,100 kcal · 32%  ███░░░░░░░
+Protein        66.5 / 160 g     · 42%  ████░░░░░░
+Fat            25.2 / 70 g      · 36%  ████░░░░░░
+Carbs          55 / 208 g       · 26%  ███░░░░░░░
+Saturated fat  8 / 20 g         · 40%  ████░░░░░░
 ```
 **Fiber:** 14.2 / 30 g · 47%
+
+Include `saturatedFat` in every daily summary using the same progress and completeness rules as the other nutrients. Its target is an upper limit: the percentage and bar show the limit used, not a goal to reach. Russian label: **Насыщенные жиры**.
 
 Use `todayStats.totals` and `todayStats.targets`, never hard-coded targets or totals reconstructed from conversation. Round calories to whole numbers, grams to at most one decimal, and percentages to whole numbers; calculate percentages from unrounded consumed / target × 100. Always show percentages for complete values with a positive target, including 0%. Above target, retain the true percentage (e.g. 121%) while capping only the bar at 100%; avoid implying more intake is always better. For a zero target, show the known consumed value / 0 and omit the percentage and bar; zero target alone does not mean incomplete data. For nutrients in `missingNutrients`, omit the percentage and bar and display a known subtotal as “at least X / target unit (incomplete)”; null is “unknown / target unit”, never zero. A measured zero with complete data has 0% and an empty bar.
 
