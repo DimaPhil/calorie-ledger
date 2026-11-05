@@ -3,7 +3,6 @@ import { getMenuRecipe, listMenuRecipes } from "../src/menu-shared.js";
 import {
   defaultGoals,
   metricDefinitions,
-  checkInSchema,
   type GoalSettings,
 } from "../src/goals-shared.js";
 import { enrichProduct } from "./enrichment.js";
@@ -44,23 +43,6 @@ export class Service {
   ) {}
   today() {
     return DateTime.now().setZone(this.user.timezone).toISODate()!;
-  }
-  async checkInStatus(date = this.today()) {
-    validateDate(date);
-    const { rows } = await this.database.query(
-      "SELECT data FROM checkins WHERE user_id=$1 AND date=$2",
-      [this.user.id, date],
-    );
-    const checkIn = rows[0] ? checkInSchema.strip().parse(rows[0].data) : null;
-    return {
-      status: checkIn ? "recorded" : "missing",
-      date,
-      timezone: this.user.timezone,
-      checkedIn: !!checkIn,
-      shouldAsk: !checkIn && date === this.today(),
-      loggingComplete: checkIn?.complete ?? false,
-      checkIn,
-    };
   }
   async list<T>(table: "products" | "dishes"): Promise<T[]> {
     const { rows } = await this.database.query(
@@ -430,18 +412,11 @@ export class Service {
           ),
         }));
         const fallback = { effectiveDate: "0001-01-01", targets: defaultGoals };
-        const checkins = await this.database.query(
-          "SELECT data FROM checkins WHERE user_id=$1 AND date BETWEEN $2 AND $3 ORDER BY date",
-          [this.user.id, input.start, input.end],
-        );
         return {
           settings:
             settings.filter((s) => s.effectiveDate <= input.end).at(-1) ||
             fallback,
           history: [fallback, ...settings],
-          checkins: checkins.rows.map((r) =>
-            checkInSchema.strip().parse(r.data),
-          ),
         };
       }
       case "save_goals":
@@ -451,24 +426,6 @@ export class Service {
           [this.user.id, input.effectiveDate, JSON.stringify(input)],
         );
         return input;
-      case "save_checkin":
-        validateDate(input.date);
-        await this.database.query(
-          "INSERT INTO checkins(user_id,date,data) VALUES($1,$2,$3) ON CONFLICT(user_id,date) DO UPDATE SET data=$3",
-          [this.user.id, input.date, JSON.stringify(input)],
-        );
-        return input;
-      case "get_checkin":
-        return this.checkInStatus(input.date);
-      case "update_checkin": {
-        const previous = await this.checkInStatus(input.date);
-        const merged = { complete: false, ...previous.checkIn, ...input };
-        await this.database.query(
-          "INSERT INTO checkins(user_id,date,data) VALUES($1,$2,$3) ON CONFLICT(user_id,date) DO UPDATE SET data=$3",
-          [this.user.id, input.date, JSON.stringify(merged)],
-        );
-        return this.checkInStatus(input.date);
-      }
       case "preview_food": {
         const date = input.date || this.today();
         validateDate(date);

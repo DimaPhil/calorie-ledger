@@ -23,64 +23,41 @@ afterAll(async () => {
   await db.close();
 });
 
-it("checks in by local day, preserves omitted fields and isolates owners", async () => {
-  const clock = vi
-    .spyOn(Date, "now")
-    .mockReturnValue(Date.parse("2027-01-02T01:00:00Z"));
-  const local = new Service(db, { ...a.user, timezone: "America/Los_Angeles" });
-  try {
-    expect(await local.run("get_checkin", {})).toMatchObject({
-      date: "2027-01-01",
-      checkedIn: false,
-      shouldAsk: true,
-      loggingComplete: false,
-    });
-    await local.run("update_checkin", {
-      date: "2027-01-01",
-      sleep: 7,
-      weight: 95,
-    });
-    await Promise.all([
-      local.run("update_checkin", { date: "2027-01-01", beverages: 1250 }),
-      local.run("update_checkin", { date: "2027-01-01", energy: 4 }),
-    ]);
-    expect(await local.run("get_checkin", {})).toMatchObject({
-      checkedIn: true,
-      shouldAsk: false,
-      loggingComplete: false,
-      checkIn: { sleep: 7, weight: 95, beverages: 1250, energy: 4 },
-    });
-    expect((await b.run("get_checkin", { date: "2027-01-01" })).checkedIn).toBe(
-      false,
-    );
-    expect(
-      (await local.run("get_checkin", { date: "2026-12-31" })).shouldAsk,
-    ).toBe(false);
-    clock.mockReturnValue(Date.parse("2027-01-02T09:00:00Z"));
-    expect(await local.run("get_checkin", {})).toMatchObject({
-      date: "2027-01-02",
-      checkedIn: false,
-      shouldAsk: true,
-    });
-    await expect(
-      local.run("update_checkin", { date: "2027-01-02" }),
-    ).rejects.toThrow();
-    await expect(
-      local.run("update_checkin", { date: "2027-01-02", fish: 1 }),
-    ).rejects.toThrow();
-    await db.query(
-      'UPDATE checkins SET data=data || \'{"fish":1,"fruitVeg":400}\'::jsonb WHERE user_id=$1 AND date=$2',
-      [a.user.id, "2027-01-01"],
-    );
-    const historical = await local.run("get_goals", {
-      start: "2027-01-01",
-      end: "2027-01-01",
-    });
-    expect(historical.checkins[0]).not.toHaveProperty("fish");
-    expect(historical.settings.targets).not.toHaveProperty("fruitVeg");
-  } finally {
-    clock.mockRestore();
-  }
+it("retires check-ins without deleting historical records or food targets", async () => {
+  const legacy = { date: "2029-01-01", complete: true, sleep: 7, weight: 95 };
+  await db.query("INSERT INTO checkins(user_id,date,data) VALUES($1,$2,$3)", [
+    a.user.id,
+    legacy.date,
+    JSON.stringify(legacy),
+  ]);
+  const goals = {
+    effectiveDate: legacy.date,
+    targets: { ...defaultGoals, calories: 2300, beverages: 2000, sleep: 8 },
+  };
+  await db.query(
+    "INSERT INTO goals(user_id,effective_date,data) VALUES($1,$2,$3)",
+    [a.user.id, legacy.date, JSON.stringify(goals)],
+  );
+  const result = await a.run("get_goals", {
+    start: legacy.date,
+    end: legacy.date,
+  });
+  expect(result).not.toHaveProperty("checkins");
+  expect(result.settings.targets.calories).toBe(2300);
+  expect(result.settings.targets).not.toHaveProperty("beverages");
+  expect(result.settings.targets).not.toHaveProperty("sleep");
+  expect(
+    (await b.run("get_goals", { start: legacy.date, end: legacy.date }))
+      .settings.targets.calories,
+  ).toBe(2100);
+  expect(
+    (
+      await db.query("SELECT data FROM checkins WHERE user_id=$1 AND date=$2", [
+        a.user.id,
+        legacy.date,
+      ])
+    ).rows[0].data,
+  ).toEqual(legacy);
 });
 
 it("previews saved and unsaved foods and dishes without writing, with honest goal impact", async () => {
@@ -223,7 +200,7 @@ it("enriches only the owner's food, preserving stored journal snapshots", async 
   }
 });
 
-it("stores effective-date goals and check-ins with owner isolation and validation", async () => {
+it("stores effective-date goals with owner isolation and validation", async () => {
   const dates = { start: "2026-09-01", end: "2026-09-30" };
   expect((await a.run("get_goals", dates)).settings.targets.calories).toBe(
     2100,
@@ -242,29 +219,8 @@ it("stores effective-date goals and check-ins with owner isolation and validatio
   expect((await b.run("get_goals", dates)).settings.targets.calories).toBe(
     2100,
   );
-  await a.run("save_checkin", {
-    date: "2026-09-24",
-    complete: true,
-    weight: 95,
-    beverages: 2000,
-    energy: 4,
-  });
-  const result = await a.run("get_goals", dates);
-  expect(result.checkins).toEqual([
-    {
-      date: "2026-09-24",
-      complete: true,
-      weight: 95,
-      beverages: 2000,
-      energy: 4,
-    },
-  ]);
-  expect((await b.run("get_goals", dates)).checkins).toEqual([]);
   await expect(
-    a.run("save_checkin", { date: "2026-02-30", complete: false }),
-  ).rejects.toThrow();
-  await expect(
-    a.run("save_checkin", { date: "2026-09-24", complete: false, sleep: 25 }),
+    a.run("save_goals", { effectiveDate: "2026-02-30", targets: defaultGoals }),
   ).rejects.toThrow();
   await expect(
     a.run("save_goals", {
@@ -272,10 +228,6 @@ it("stores effective-date goals and check-ins with owner isolation and validatio
       targets: { ...defaultGoals, protein: -1 },
     }),
   ).rejects.toThrow();
-  await a.run("save_checkin", { date: "2026-09-24", complete: false });
-  expect((await a.run("get_goals", dates)).checkins).toEqual([
-    { date: "2026-09-24", complete: false },
-  ]);
 });
 
 it("tracks new nutrients only on new entries and preserves manual overrides on source edits", async () => {

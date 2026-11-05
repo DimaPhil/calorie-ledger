@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { checkInSchema, goalTargetsSchema } from "./goals-shared.js";
+import { goalTargetsSchema } from "./goals-shared.js";
 
 export const legacyNutrientKeys = [
   "calories",
@@ -220,14 +220,6 @@ export const actionSchemas = {
   save_goals: z
     .object({ effectiveDate: dateSchema, targets: goalTargetsSchema })
     .strict(),
-  save_checkin: checkInSchema,
-  get_checkin: z.object({ date: dateSchema.optional() }).strict(),
-  update_checkin: checkInSchema
-    .partial()
-    .required({ date: true })
-    .refine((v) => Object.keys(v).length > 1, {
-      message: "Provide at least one check-in field to update.",
-    }),
   preview_food: quantitySchema
     .extend({
       productId: z.uuid().optional(),

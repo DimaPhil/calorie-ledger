@@ -16,13 +16,13 @@ Keep your foods and recipes in one place, understand what contributes to your da
 | **Daily targets** | See calories and macros against editable goals, expand additional nutrients, and click a target to see which foods contributed. |
 | **Foods & dishes** | Search USDA and Open Food Facts, review labels, save portions, and build reusable recipes with serving yields or cooked weights. |
 | **Menu** | Browse 22 illustrated recipes, filter and scale them, then map ingredients to saved foods to create a dish. |
-| **Progress** | Chart calories, protein, fiber and other recorded nutrients, plus weight, waist, sleep, hydration and daily check-ins. Preset and custom intervals are supported. |
+| **Progress** | Chart calories, protein, fiber and other recorded nutrients, Preset and custom intervals are supported. |
 | **Export** | Download all recorded history as CSV tables in a ZIP or a Markdown report, with an AI analysis prompt and completeness information. |
-| **AI agents** | Find familiar foods, preview a meal's nutrition without logging it, manage recipes, record meals and check-ins, and retrieve statistics through MCP. |
+| **AI agents** | Find familiar foods, preview a meal's nutrition without logging it, manage recipes, record meals, and retrieve statistics through MCP. |
 
 ### Progress and recipe inspiration
 
-![Progress dashboard showing check-in consistency and daily calorie and nutrient charts](docs/screenshots/desktop-progress.png)
+![Progress dashboard showing daily calorie and nutrient charts](docs/screenshots/desktop-progress.png)
 
 <details>
 <summary>View the recipe library</summary>
@@ -74,7 +74,7 @@ For clients that support manual bearer authentication, create an agent token in 
 }
 ```
 
-Install the [Calorie Ledger skill](.agents/skills/calorie-ledger/SKILL.md) to give the agent guidance on matching foods, missing quantities, meal previews and daily check-ins. A [Claude-ready skill ZIP](https://calorie-ledger-six.vercel.app/calorie-ledger-skill.zip) is available from the app. The skill supplies instructions; the MCP connector supplies authenticated tools. See the [connection and authentication guide](docs/guide.md#mcp-connection) for installation details, token lifetimes and protocol behavior.
+Install the [Calorie Ledger skill](.agents/skills/calorie-ledger/SKILL.md) to give the agent guidance on matching foods, missing quantities, meal previews and nutrition goals. A [Claude-ready skill ZIP](https://calorie-ledger-six.vercel.app/calorie-ledger-skill.zip) is available from the app. The skill supplies instructions; the MCP connector supplies authenticated tools. See the [connection and authentication guide](docs/guide.md#mcp-connection) for installation details, token lifetimes and protocol behavior.
 
 ## Run locally
 
@@ -132,7 +132,7 @@ flowchart LR
 | Path | Responsibility |
 | --- | --- |
 | [`src/App.tsx`](src/App.tsx) | Journal, food and dish management, settings |
-| [`src/Progress.tsx`](src/Progress.tsx), [`src/Goals.tsx`](src/Goals.tsx) | Charts, daily targets and check-ins |
+| [`src/Progress.tsx`](src/Progress.tsx), [`src/Goals.tsx`](src/Goals.tsx) | Charts and daily nutrition targets |
 | [`src/Menu.tsx`](src/Menu.tsx), [`src/MenuDish.tsx`](src/MenuDish.tsx) | Recipe browsing and dish creation |
 | [`src/shared.ts`](src/shared.ts) | Validated web/MCP contracts |
 | [`server/service.ts`](server/service.ts), [`server/nutrition.ts`](server/nutrition.ts) | Account-scoped operations and nutrition math |

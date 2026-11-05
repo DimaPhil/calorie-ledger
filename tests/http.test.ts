@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
+import { beforeAll, afterAll, describe, it, expect } from "vitest";
 import request from "supertest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -107,6 +107,10 @@ describe("authentication and web API", () => {
         .send(data);
     expect((await call("save_product", {})).status).toBe(422);
     expect((await call("constructor", {})).status).toBe(404);
+    for (const action of ["save_checkin", "get_checkin", "update_checkin"])
+      expect(
+        (await call(action, { date: "2026-09-24", complete: true })).status,
+      ).toBe(404);
     expect((await request(app).get("/api/missing")).status).toBe(404);
     expect((await call("list_products", {})).body).toEqual([]);
   });
@@ -189,42 +193,10 @@ describe("real MCP client pipeline", () => {
     expect(
       JSON.parse((imported.content as { text: string }[])[0].text).name,
     ).toBe("Tuna & spinach frittata");
-    expect((imported.structuredContent as any).dailyCheckIn).toBeDefined();
-    const originalQuery = database.query.bind(database);
-    const failedContext = vi
-      .spyOn(database, "query")
-      .mockImplementation(async (sql, values) => {
-        if (sql === "SELECT data FROM checkins WHERE user_id=$1 AND date=$2")
-          throw new Error("Simulated context outage");
-        return originalQuery(sql, values);
-      });
-    try {
-      const committed = await client.callTool({
-        name: "save_product",
-        arguments: {
-          product: { name: "Context outage", nutrients: { calories: 10 } },
-        },
-      });
-      expect(committed.isError).not.toBe(true);
-      expect((committed.structuredContent as any).dailyCheckIn).toEqual({
-        status: "unavailable",
-        shouldAsk: false,
-      });
-      expect((committed.structuredContent as any).result.id).toBeTruthy();
-    } finally {
-      failedContext.mockRestore();
-    }
-    const context = (created.structuredContent as any).dailyCheckIn;
-    expect(context).toMatchObject({ checkedIn: false, shouldAsk: true });
-    const checked = await client.callTool({
-      name: "update_checkin",
-      arguments: { date: context.date, sleep: 7 },
-    });
-    expect((checked.structuredContent as any).dailyCheckIn).toMatchObject({
-      checkedIn: true,
-      shouldAsk: false,
-      loggingComplete: false,
-    });
+    for (const name of ["save_checkin", "get_checkin", "update_checkin"])
+      expect(tools.tools.map((tool) => tool.name)).not.toContain(name);
+    expect(imported.structuredContent).not.toHaveProperty("dailyCheckIn");
+    expect(imported.content).toHaveLength(1);
     const preview = await client.callTool({
       name: "preview_food",
       arguments: { productId: product.id, amount: 50, unit: "g" },
@@ -233,10 +205,8 @@ describe("real MCP client pipeline", () => {
       logged: false,
       nutrients: { calories: 200 },
     });
-    expect(
-      JSON.parse((preview.content as { text: string }[])[1].text).dailyCheckIn
-        .checkedIn,
-    ).toBe(true);
+    expect(preview.content).toHaveLength(1);
+    expect(preview.structuredContent).not.toHaveProperty("dailyCheckIn");
     const missing = await client.callTool({
       name: "resolve_food",
       arguments: { query: "MCP oats" },
@@ -280,6 +250,8 @@ describe("real MCP client pipeline", () => {
       },
     });
     expect(bad.isError).toBe(true);
+    expect(bad.structuredContent).toBeUndefined();
+    expect(bad.content).toHaveLength(1);
     expect((bad.content as { text: string }[])[0].text).toContain(
       "clarification_required",
     );

@@ -76,17 +76,14 @@ beforeAll(async () => {
     effectiveDate: "2024-01-02",
     targets: { ...defaultGoals, calories: 1800 },
   });
-  await service.run("save_checkin", {
-    date: "2024-01-01",
-    complete: true,
-    beverages: 0,
-    weight: 95,
-  });
-  await service.run("save_checkin", {
-    date: "2023-12-25",
-    complete: false,
-    sleep: 0,
-  });
+  for (const legacy of [
+    { date: "2024-01-01", complete: true, beverages: 0, weight: 95 },
+    { date: "2023-12-25", complete: false, sleep: 0 },
+  ])
+    await database.query(
+      "INSERT INTO checkins(user_id,date,data) VALUES($1,$2,$3)",
+      [user.id, legacy.date, JSON.stringify(legacy)],
+    );
   // Long history must bypass the interactive journal's bounded date range.
   await database.query(
     `INSERT INTO entries(id,user_id,date,data,idempotency_key,request_hash)
@@ -134,15 +131,13 @@ it("exports all history, coverage, targets and source data in a valid CSV ZIP", 
   expect(exported.contentType).toBe("application/zip");
   expect(exported.filename).toMatch(/\.zip$/);
   const files = unpack(exported.body);
-  expect(Object.keys(files)).toHaveLength(13);
+  expect(Object.keys(files)).toHaveLength(12);
   expect(files["AI_ANALYSIS_PROMPT.md"]).toBe(analysisPrompt);
   const daily = files["daily.csv"] as Record<string, string>[];
-  expect(daily).toHaveLength(403);
+  expect(daily).toHaveLength(402);
   const incomplete = daily.find((row) => row.date === "2024-01-01")!;
   expect(incomplete).toMatchObject({
     entryCount: "2",
-    checkedIn: "true",
-    loggingComplete: "true",
     calories: "70",
     protein: "0",
     proteinFullyKnown: "true",
@@ -154,13 +149,21 @@ it("exports all history, coverage, targets and source data in a valid CSV ZIP", 
     magnesiumKnownSubtotal: "",
     magnesiumFullyKnown: "false",
   });
-  expect(daily.find((row) => row.date === "2023-12-25")).toMatchObject({
-    entryCount: "0",
-    calories: "",
-    caloriesKnownSubtotal: "",
-    caloriesFullyKnown: "false",
-    checkedIn: "true",
-  });
+  expect(daily.find((row) => row.date === "2023-12-25")).toBeUndefined();
+  expect(incomplete).not.toHaveProperty("checkedIn");
+  expect(incomplete).not.toHaveProperty("loggingComplete");
+  expect(files).not.toHaveProperty("checkins.csv");
+  expect(
+    (
+      await database.query(
+        "SELECT data FROM checkins WHERE user_id=$1 ORDER BY date",
+        [user.id],
+      )
+    ).rows.map((row) => row.data),
+  ).toEqual([
+    { date: "2023-12-25", complete: false, sleep: 0 },
+    { date: "2024-01-01", complete: true, beverages: 0, weight: 95 },
+  ]);
   expect(daily.find((row) => row.date === "2024-01-02")).toMatchObject({
     caloriesTarget: "1800",
     fiber: "2",

@@ -492,8 +492,8 @@ function SessionApp({
                   )
                 : tab === "Progress"
                   ? t(
-                      "Your nutrition and daily check-ins, over time.",
-                      "Питание и ежедневные отметки в динамике.",
+                      "Your recorded nutrition over time.",
+                      "Записанное питание в динамике.",
                     )
                   : tab === "Menu"
                     ? t(

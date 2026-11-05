@@ -54,16 +54,6 @@ export const metricDefinitions = [
     period: "day",
   },
   {
-    key: "beverages",
-    label: "Drinks",
-    unit: "ml",
-    target: 2500,
-    max: 3000,
-    kind: "target",
-    source: "checkin",
-    period: "day",
-  },
-  {
     key: "saturatedFat",
     label: "Saturated fat",
     unit: "g",
@@ -126,16 +116,6 @@ export const metricDefinitions = [
     source: "food",
     period: "day",
   },
-  {
-    key: "sleep",
-    label: "Sleep",
-    unit: "h",
-    target: 8,
-    min: 7,
-    kind: "minimum",
-    source: "checkin",
-    period: "day",
-  },
 ] as const;
 export const defaultGoals: Record<string, number> = Object.fromEntries(
   metricDefinitions.map((m) => [m.key, m.target]),
@@ -154,20 +134,7 @@ export type GoalSettings = {
   effectiveDate: string;
   targets: Record<string, number>;
 };
-export const checkInSchema = z
-  .object({
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    complete: z.boolean(),
-    beverages: z.number().min(0).max(20000).optional(),
-    weight: z.number().positive().max(500).optional(),
-    waist: z.number().positive().max(300).optional(),
-    sleep: z.number().min(0).max(24).optional(),
-    energy: z.number().int().min(1).max(5).optional(),
-  })
-  .strict();
-export type CheckIn = z.infer<typeof checkInSchema>;
 export type GoalsData = {
   settings: GoalSettings;
   history: GoalSettings[];
-  checkins: CheckIn[];
 };
