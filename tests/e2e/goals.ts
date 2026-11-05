@@ -43,7 +43,7 @@ export async function checkGoals(page: Page, info: TestInfo) {
   await expect(card("Energy")).toContainText("50%");
   await expect(page.locator(".goal-card")).toHaveCount(4);
   await page.getByRole("button", { name: "Show more", exact: true }).click();
-  await expect(page.locator(".goal-card")).toHaveCount(14);
+  await expect(page.locator(".goal-card")).toHaveCount(12);
   await page.getByRole("button", { name: "Show less", exact: true }).click();
   await expect(page.locator(".goal-card")).toHaveCount(4);
   await page.getByRole("button", { name: "Show more", exact: true }).click();
@@ -73,30 +73,12 @@ export async function checkGoals(page: Page, info: TestInfo) {
   await expect(dialog).toContainText("Unknown");
   await expect(dialog).toContainText("unknown values are not zero");
   await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.locator(".daily-checkin summary").click();
-  await expect(
-    page.getByLabel("Fruit & vegetables total (g)", { exact: true }),
-  ).toHaveCount(0);
-  await expect(page.getByLabel("Fish portions", { exact: true })).toHaveCount(
-    0,
-  );
-  await page.getByLabel("Drinks total (ml)", { exact: true }).fill("1250");
-  await page.getByLabel("Weight (kg)", { exact: true }).fill("95");
-  await page.getByLabel("I have finished logging this day").check();
-  await page
-    .getByRole("button", { name: "Save check-in", exact: true })
-    .click();
-  await expect(card("Drinks")).toContainText("50%");
-  await page
-    .getByRole("button", { name: "Show drinks contributions", exact: true })
-    .click();
-  await expect(dialog).toContainText("Source: daily check-in totals");
-  await expect(dialog).toContainText("1,250 ml");
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await expect(page.locator(".daily-checkin")).toHaveCount(0);
+  await expect(page.getByLabel("Weight (kg)", { exact: true })).toHaveCount(0);
+  await expect(card("Drinks")).toHaveCount(0);
+  await expect(card("Sleep")).toHaveCount(0);
   await page.getByRole("button", { name: "Week", exact: true }).click();
-  await expect(
-    page.getByText("1 / 7 days complete", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("Days logged: 1", { exact: true })).toBeVisible();
   await expect(card("Energy")).toContainText("50%");
   await page.getByRole("button", { name: "Show more", exact: true }).click();
   await page

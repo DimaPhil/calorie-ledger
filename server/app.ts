@@ -24,8 +24,8 @@ import { externalSearch, type Provider } from "./search.js";
 
 const instructions =
   "For menu inspiration use list_menu_recipes and get_menu_recipe. To save one as a reusable dish, map every weighed ingredient to a confirmed saved product and pass its explicit full-batch grams to create_menu_dish. Scale amounts by requested servings / source servings; do not infer product identity or copy approximate menu macros as verified nutrition. Optional to-taste ingredients need explicit grams to include. Creating a dish does not log it. " +
-  "For planning or 'what would it cost to eat', use preview_food, never log_food or save_product unless requested. Preview saved foods/dishes or pass an inline external product; it returns nutrition and hypothetical goal impact without writes. Every tool response includes today's dailyCheckIn context. If shouldAsk is true, ask one brief optional check-in question for the new local day without blocking the food task; do not repeat it in the same conversation/day. Use update_checkin for reported fields, preserving omitted measurements. checkedIn differs from loggingComplete. Do not ask for fruit/vegetables or fish tracking. " +
-  "Read get_goals for effective-date targets and check-ins. Treat sodium, saturated fat and free sugars as limits, unknown nutrition as unknown, and only confirmed complete days as complete. Free sugars are not total or added sugars. Never change goals automatically or mark a day complete without user confirmation. Check-ins replace reported daily totals; preserve other fields. " +
+  "For planning or 'what would it cost to eat', use preview_food, never log_food or save_product unless requested. Preview saved foods/dishes or pass an inline external product; it returns nutrition and hypothetical goal impact without writes. " +
+  "Read get_goals for effective-date nutrition targets. Treat sodium, saturated fat and free sugars as limits, unknown nutrition as unknown, and nutrient completeness independently for each metric. Free sugars are not total or added sugars. Never change goals automatically. There are no daily check-ins or body measurements; do not ask for them. " +
   "New ordinary logs auto-update when their saved food, recipe or ingredients change. Older logs and customized ingredient overrides stay fixed. Manual entry name/quantity/component corrections detach that entry; date/meal/notes-only corrections keep it linked. Use a new saved recipe for a genuinely different batch rather than changing a template that linked logs follow. " +
   "Match raw/dry/cooked/drained nutrition to the weighed state. Never apply dry per-100g nutrition to cooked grams. Use measured dry ingredients and cookedWeight in a dish; if unavailable, research a matching cooked food and disclose estimates. Search saved foods then providers; if needed use the calling agent's web search, prefer exact manufacturer/restaurant labels or USDA, verify serving basis, cite sources and store provenance in notes. Ask only for material missing details and obtain approval for unsupported estimates. Full guidance is published at /agent-skill.md and in the downloadable Claude skill ZIP. " +
   "Food identity: if requiresProductConfirmation is false, use preferredProductId without asking which food again, even when candidates contains alternatives. matchType explains confirmed_alias or exact_saved. If true, ask only about the unresolved identity; never select by ranking alone. Keep explicit brand, preparation and variant changes in the query; pass size as portionLabel where applicable. Confirmed identity does not settle amount or portion: validate them separately. " +
@@ -34,17 +34,11 @@ const descriptions: Record<Action, string> = {
   save_enriched_product:
     "Fill missing nutrient values on one saved food from its exact USDA or Open Food Facts ID. Keeps existing values and journal snapshots unchanged; never infers free sugars. Returns added fields and warnings. Run only when the user requests source enrichment.",
   get_goals:
-    "Read editable nutrition goals with effective-date history and daily check-ins. Missing nutrients are unknown, not zero. Compare each day to the goals effective that day.",
+    "Read editable nutrition goals with effective-date history. Missing nutrients are unknown, not zero. Compare each day to the goals effective that day.",
   save_goals:
     "Set the user's daily targets, effective from a date. Only change on user request; never automatically credit exercise calories.",
-  save_checkin:
-    "Replace a daily check-in in full. Prefer update_checkin for agent edits to preserve omitted fields. complete means all food for the day is logged, not that a check-in was recorded. Drinks ml, weight kg, waist cm, sleep hours, wellbeing energy 1–5. Unknown measurements remain absent.",
-  get_checkin:
-    "Read check-in status and reported values for date (defaults to today in the user's timezone). checkedIn records whether a check-in exists; loggingComplete is separate. Ask one optional check-in question when today's shouldAsk is true; do not nag or block a food task.",
-  update_checkin:
-    "Fill or correct only reported daily check-in fields; omitted fields are preserved atomically. date is required. beverages is the absolute daily drink total in ml, not an increment; weight kg, waist cm, sleep hours, wellbeing energy 1–5. complete is optional, and true only after explicit confirmation all food is logged. Returns status and saved check-in. Never invent missing measurements.",
   preview_food:
-    "Read-only what-if nutrition for a portion of exactly one saved productId, dishId, or inline product (e.g. an external search candidate with id/updatedAt removed). Requires amount/unit and any necessary portionLabel; date defaults to local today. Returns logged:false, portion nutrients, missing fields and hypothetical goal impact relative to already logged food. No food, recipe, preference, check-in or journal data is written. Use for choosing/comparing foods; logging requires a later explicit user request.",
+    "Read-only what-if nutrition for a portion of exactly one saved productId, dishId, or inline product (e.g. an external search candidate with id/updatedAt removed). Requires amount/unit and any necessary portionLabel; date defaults to local today. Returns logged:false, portion nutrients, missing fields and hypothetical goal impact relative to already logged food. No food, recipe, preference or journal data is written. Use for choosing/comparing foods; logging requires a later explicit user request.",
   list_products:
     "List your saved products, including all nutrition and portion conversions.",
   search_products:
@@ -268,11 +262,6 @@ export function createApp(
     }
     await limit(database, `mcp:${user.id}`, 180);
     const service = new Service(database, user, provider);
-    // Context failure must not turn a committed mutation into a retryable failure.
-    const checkInContext = () =>
-      service
-        .checkInStatus()
-        .catch(() => ({ status: "unavailable", shouldAsk: false }));
     const handler = createMcpHandler(() => {
       const server = new McpServer(
         { name: "calorie-ledger", version: "1.0.0" },
@@ -297,19 +286,13 @@ export function createApp(
           async (args: unknown) => {
             try {
               const data = await service.run(action, args);
-              const dailyCheckIn = await checkInContext();
               return {
                 content: [
                   { type: "text" as const, text: JSON.stringify(data) },
-                  {
-                    type: "text" as const,
-                    text: JSON.stringify({ dailyCheckIn }),
-                  },
                 ],
-                structuredContent: { result: data, dailyCheckIn },
+                structuredContent: { result: data },
               };
             } catch (error) {
-              const dailyCheckIn = await checkInContext();
               const e =
                 error instanceof AppError
                   ? error
@@ -327,7 +310,6 @@ export function createApp(
                       status: e.code,
                       message: e.message,
                       details: e.details,
-                      dailyCheckIn,
                     }),
                   },
                 ],

@@ -26,11 +26,11 @@ export async function checkProgress(page: Page, info: TestInfo) {
   });
   for (const entry of existing.entries)
     await post("delete_entry", { id: entry.id });
-  for (const [date, amount, complete, weight] of [
-    ["2026-09-23", 900, true, 99],
-    ["2026-09-24", 100, true, 95],
-    ["2026-09-25", 50, false, 94.8],
-    ["2026-09-27", 200, true, 94.7],
+  for (const [date, amount] of [
+    ["2026-09-23", 900],
+    ["2026-09-24", 100],
+    ["2026-09-25", 50],
+    ["2026-09-27", 200],
   ] as const) {
     await post("log_food", {
       productId: product.id,
@@ -38,13 +38,6 @@ export async function checkProgress(page: Page, info: TestInfo) {
       unit: "g",
       date,
       idempotencyKey: `progress-${date}-${info.project.name}-${info.retry}`,
-    });
-    await post("save_checkin", {
-      date,
-      complete,
-      weight,
-      sleep: 7,
-      beverages: 2000,
     });
   }
   const incomplete = await post("save_product", {
@@ -64,12 +57,21 @@ export async function checkProgress(page: Page, info: TestInfo) {
   const calories = page
     .locator(".progress-panels > section")
     .filter({ has: page.getByRole("heading", { name: "Calories over days" }) });
-  await expect(calories).toContainText("1,500");
-  await expect(calories).toContainText("Average from 2 complete days");
+  await expect(calories.locator(".progress-big")).toContainText("1,166.7");
+  await expect(calories).toContainText("Average from 3 logged days");
+  await expect(
+    calories.locator(".progress-bar:not(.progress-bar-partial)"),
+  ).toHaveCount(3);
+  const nutrients = page.getByRole("region", { name: "Nutrients over days" });
+  await page.getByRole("button", { name: "Protein", exact: true }).click();
+  await expect(
+    nutrients.locator(".progress-bar:not(.progress-bar-partial)"),
+  ).toHaveCount(3);
+  await expect(nutrients.locator(".progress-big")).toContainText("93.3");
   await page.getByRole("button", { name: "Custom", exact: true }).click();
   await page.getByLabel("Progress end date").fill("2026-09-25");
-  await expect(calories).toContainText("Average from 1 complete days");
-  await expect(calories.locator(".progress-big")).toContainText("1,000");
+  await expect(calories).toContainText("Average from 2 logged days");
+  await expect(calories.locator(".progress-big")).toContainText("750");
   await expect(page.getByRole("button", { name: /Sep 27:/ })).toHaveCount(0);
   await page.getByLabel("Progress start date").fill("2026-09-26");
   await expect(page.getByRole("alert")).toContainText(
@@ -78,10 +80,10 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await expect(page.locator(".progress-panels")).toHaveCount(0);
   await page.getByLabel("Progress start date").fill("2026-09-24");
   await page.getByLabel("Progress end date").fill("2026-10-01");
-  await expect(calories).toContainText("Average from 2 complete days");
+  await expect(calories).toContainText("Average from 3 logged days");
   await expect(
     page.getByRole("region", { name: "Check-in consistency" }),
-  ).toContainText("38% checked in");
+  ).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Sep 23:/ })).toHaveCount(0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const panels = page.locator(".progress-panels > .panel");
@@ -98,7 +100,7 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await page.setViewportSize({ width: 390, height: 844 });
   await calories.locator("summary").click();
   await expect(calories.getByRole("row", { name: /Sep 25/ })).toContainText(
-    "In progress",
+    "Known nutrition",
   );
   await expect(calories.getByRole("row", { name: /Sep 24/ })).toContainText(
     "2,200",
@@ -107,7 +109,6 @@ export async function checkProgress(page: Page, info: TestInfo) {
     "Not recorded",
   );
   await page.getByRole("button", { name: "Fiber", exact: true }).click();
-  const nutrients = page.getByRole("region", { name: "Nutrients over days" });
   await expect(nutrients.locator(".progress-big")).toContainText("15");
   await expect(nutrients).toContainText(
     "2 of 3 logged days have complete nutrient data",
@@ -136,22 +137,17 @@ export async function checkProgress(page: Page, info: TestInfo) {
   await expect(nutrients.locator(".progress-big")).toContainText("0");
   await page.getByRole("button", { name: "Fiber", exact: true }).click();
   await expect(
-    page
-      .getByRole("combobox", { name: "Body measurement" })
-      .locator('option[value="waist"]'),
+    page.getByRole("combobox", { name: "Body measurement" }),
   ).toHaveCount(0);
-  await page
-    .getByRole("combobox", { name: "Body measurement" })
-    .selectOption("weight");
-  await page
-    .getByRole("combobox", { name: "Daily rhythm metric" })
-    .selectOption("beverages");
-  await expect(page.getByRole("img", { name: /Drinks, / })).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Daily rhythm metric" }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "7 days", exact: true }).click();
-  await expect(calories).toContainText("Average from 1 complete days");
+  await expect(calories).toContainText("Average from 2 logged days");
+  await expect(calories.locator(".progress-big")).toContainText("1,250");
   await expect(page.getByRole("button", { name: /Sep 24:/ })).toHaveCount(0);
   await page.getByRole("button", { name: "90 days", exact: true }).click();
-  await expect(calories).toContainText("Average from 2 complete days");
+  await expect(calories).toContainText("Average from 3 logged days");
   await page.locator(".export-panel > summary").click();
   await page.getByText("AI nutrition analysis prompt", { exact: true }).click();
   const prompt = page.getByRole("textbox", {
@@ -203,9 +199,10 @@ export async function checkProgress(page: Page, info: TestInfo) {
     path: info.outputPath("phone-progress.png"),
     fullPage: true,
   });
-  await page
+  await calories.locator("summary").click();
+  await calories
     .getByRole("button", {
-      name: "Sep 24: checked in, food day complete",
+      name: "Sep 24",
       exact: true,
     })
     .click();

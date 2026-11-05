@@ -11,7 +11,6 @@ import {
   metricDefinitions,
   defaultGoals,
   type GoalsData,
-  type CheckIn,
   type GoalSettings,
 } from "./goals-shared";
 import "./goals.css";
@@ -44,13 +43,6 @@ function useGoalText() {
         : localizeError(message, language),
   };
 }
-const shift = (date: string, amount: number) => {
-  const d = new Date(`${date}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + amount);
-  return d.toISOString().slice(0, 10);
-};
-const monday = (date: string) =>
-  shift(date, -((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7));
 const goalsOn = (data: GoalsData, date: string) =>
   [...data.history]
     .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))
@@ -118,11 +110,12 @@ export function GoalsDashboard({
         <p>{t("Loading goals…", "Загрузка целей…")}</p>
       </section>
     );
-  const completeDays = stats.days.filter((d) =>
-    data.checkins.some((c) => c.date === d.date && c.complete),
-  );
-  const selectedDays = single ? stats.days : completeDays;
-  const current = data.checkins.find((c) => c.date === stats.start);
+  const selectedDays = stats.days.filter((day) => day.count > 0);
+  const eligibleDay = (date: string, key: keyof Nutrients) =>
+    single ||
+    !stats.entries
+      .filter((e) => e.date === date)
+      .some((e) => e.items.some((i) => i.nutrients[key] === undefined));
   const targetDate = single ? stats.start : stats.end;
   return (
     <section
@@ -138,14 +131,10 @@ export function GoalsDashboard({
             : t("Daily averages", "Среднее за день")}
         </h2>
         <span>
-          {single
-            ? current?.complete
-              ? t("Day complete", "День завершён")
-              : t("In progress", "В процессе")
-            : t(
-                `${completeDays.length} / ${stats.days.length} days complete`,
-                `Завершено дней: ${completeDays.length} / ${stats.days.length}`,
-              )}
+          {t(
+            `Days logged: ${selectedDays.length}`,
+            `Дней с записями: ${selectedDays.length}`,
+          )}
         </span>
       </div>
       <p className="goals-intro">
@@ -155,8 +144,8 @@ export function GoalsDashboard({
               "Съедено, цель и процент. Для ограничений показана использованная доля.",
             )
           : t(
-              "Averages use days you marked complete. Unlogged days are never treated as zero.",
-              "Среднее рассчитано по завершённым дням. Дни без записей не считаются нулевыми.",
+              "Averages use logged days with known nutrition for each nutrient. Unlogged days are never treated as zero.",
+              "Среднее рассчитано по дням с известными значениями выбранного нутриента. Дни без записей не считаются нулевыми.",
             )}
       </p>
       <div className="metrics goal-grid" id="goal-metrics">
@@ -173,26 +162,22 @@ export function GoalsDashboard({
             let target = 0;
             let partial = false;
             for (const day of selectedDays) {
-              const value =
-                metric.source === "food"
-                  ? (day.nutrients as Record<string, number | undefined>)[
-                      metric.key
-                    ]
-                  : (
-                      data.checkins.find(
-                        (c) => c.date === day.date,
-                      ) as unknown as Record<string, unknown> | undefined
-                    )?.[metric.key];
-              if (
-                typeof value === "number" &&
-                (metric.source !== "food" || day.count > 0)
-              ) {
+              const value = day.nutrients[metric.key as keyof Nutrients];
+              const missing = stats.entries
+                .filter((e) => e.date === day.date)
+                .some((e) =>
+                  e.items.some(
+                    (i) =>
+                      i.nutrients[metric.key as keyof Nutrients] === undefined,
+                  ),
+                );
+              if (!single && missing) continue;
+              if (typeof value === "number") {
                 total += value;
                 target += goalsOn(data, day.date)[metric.key];
                 known++;
               }
               if (
-                metric.source === "food" &&
                 stats.entries
                   .filter((e) => e.date === day.date)
                   .some((e) =>
@@ -337,20 +322,20 @@ export function GoalsDashboard({
                     "Нет дней с известными значениями за этот период.",
                   )}{" "}
               {t(
-                "Only days marked complete are included.",
-                "Учитываются только завершённые дни.",
+                "Only logged days with fully known values for this nutrient are included.",
+                "Учитываются дни с записями и полными данными по этому нутриенту.",
               )}
             </p>
           )}
           {detail.partial && (
             <p className="form-note">
               {t(
-                "Some values are missing. The recorded total is a lower bound; unknown values are not zero.",
-                "Часть значений отсутствует. Записанная сумма — нижняя граница; неизвестное не равно нулю.",
+                "Some values are missing; unknown values are not zero. Multi-day averages exclude days missing this nutrient.",
+                "Часть значений отсутствует; неизвестное не равно нулю. Средние за несколько дней исключают дни без данных по этому нутриенту.",
               )}
             </p>
           )}
-          {detail.metric.source === "food" ? (
+          {
             <>
               <p>
                 {t(
@@ -360,7 +345,11 @@ export function GoalsDashboard({
               </p>
               <ol className="goal-contributors">
                 {stats.entries
-                  .filter((e) => selectedDays.some((d) => d.date === e.date))
+                  .filter(
+                    (e) =>
+                      selectedDays.some((d) => d.date === e.date) &&
+                      eligibleDay(e.date, detail.metric.key as keyof Nutrients),
+                  )
                   .sort(
                     (a, b) =>
                       (b.nutrients[detail.metric.key as keyof Nutrients] ??
@@ -426,8 +415,10 @@ export function GoalsDashboard({
                     );
                   })}
               </ol>
-              {!stats.entries.some((e) =>
-                selectedDays.some((d) => d.date === e.date),
+              {!stats.entries.some(
+                (e) =>
+                  selectedDays.some((d) => d.date === e.date) &&
+                  eligibleDay(e.date, detail.metric.key as keyof Nutrients),
               ) && (
                 <p>
                   {t(
@@ -437,33 +428,7 @@ export function GoalsDashboard({
                 </p>
               )}
             </>
-          ) : (
-            <>
-              <p>
-                {t(
-                  "Source: daily check-in totals. These are entered directly; food records are not added again.",
-                  "Источник: итоги ежедневной отметки. Они вводятся напрямую; значения из записей о еде повторно не прибавляются.",
-                )}
-              </p>
-              <ul>
-                {selectedDays.map((day) => {
-                  const value = data.checkins.find(
-                    (c) => c.date === day.date,
-                  )?.[detail.metric.key as "beverages" | "sleep"];
-                  return (
-                    <li key={day.date}>
-                      {dateText(day.date)}:{" "}
-                      <strong>
-                        {value === undefined
-                          ? t("Not recorded", "Не записано")
-                          : `${number(value)} ${label(detail.metric.unit)}`}
-                      </strong>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
+          }
         </Modal>
       )}
       <button
@@ -477,48 +442,34 @@ export function GoalsDashboard({
       {expanded && (
         <p className="goals-footnote">
           {t(
-            "Missing values are unknown, not zero. Free sugars differ from total and added sugars. Drink totals are entered in the check-in; they are not added again from food records.",
-            "Отсутствующие значения неизвестны, а не равны нулю. Свободные сахара отличаются от общих и добавленных. Напитки учитываются в ежедневной отметке и не прибавляются повторно из записей о еде.",
+            "Missing values are unknown, not zero. Free sugars differ from total and added sugars.",
+            "Отсутствующие значения неизвестны, а не равны нулю. Свободные сахара отличаются от общих и добавленных.",
           )}
         </p>
       )}
-      {single ? (
-        <DailyCheckIn
-          key={`${stats.start}:${refresh}`}
-          date={stats.start}
-          initial={current}
-          onSaved={() => setRefresh((n) => n + 1)}
-        />
-      ) : (
+      {!single && (
         <section className="panel goals-trends">
           <h2>{t("Across days", "По дням")}</h2>
           <p>
             {t(
-              "Select a day to review its journal. Mark a day complete after logging everything you ate.",
-              "Выберите день, чтобы открыть журнал. Завершите день, когда запишете всю съеденную еду.",
+              "Select a day to review its journal.",
+              "Выберите день, чтобы открыть журнал.",
             )}
           </p>
           <div className="goals-table-wrap">
             <table>
               <caption className="sr-only">
-                {t(
-                  "Daily nutrition and body check-ins",
-                  "Ежедневное питание и замеры",
-                )}
+                {t("Daily nutrition", "Ежедневное питание")}
               </caption>
               <thead>
                 <tr>
                   <th>{t("Day", "День")}</th>
                   <th>{t("Energy", "Калории")}</th>
                   <th>{t("Protein", "Белок")}</th>
-                  <th>{t("Weight", "Вес")}</th>
-                  <th>{t("Sleep", "Сон")}</th>
-                  <th>{t("Logging", "Учёт")}</th>
                 </tr>
               </thead>
               <tbody>
                 {stats.days.map((day) => {
-                  const check = data.checkins.find((c) => c.date === day.date);
                   const kcal = day.nutrients.calories;
                   const goal = goalsOn(data, day.date).calories;
                   return (
@@ -577,217 +528,15 @@ export function GoalsDashboard({
                             </small>
                           )}
                       </td>
-                      <td>
-                        {check?.weight === undefined
-                          ? "—"
-                          : `${number(check.weight)} ${label("kg")}`}
-                      </td>
-                      <td>
-                        {check?.sleep === undefined
-                          ? "—"
-                          : `${number(check.sleep)} ${label("h")}`}
-                      </td>
-                      <td>
-                        {check?.complete
-                          ? t("Complete", "Завершено")
-                          : day.count
-                            ? t("Partial", "Частично")
-                            : t("Not logged", "Нет записей")}
-                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-          <BodyTrend
-            checkins={data.checkins.filter(
-              (c) => c.date >= stats.start && c.date <= stats.end,
-            )}
-          />
         </section>
       )}
     </section>
-  );
-}
-
-function BodyTrend({ checkins }: { checkins: CheckIn[] }) {
-  const { t, number, dateText, label } = useGoalText();
-  const weights = checkins.filter((c) => c.weight !== undefined);
-  const waists = checkins
-    .filter((c) => c.waist !== undefined)
-    .sort((a, b) => a.date.localeCompare(b.date));
-  const weeks = [...new Set(weights.map((c) => monday(c.date)))].sort();
-  const energies = checkins.filter((c) => c.energy !== undefined);
-  return (
-    <div className="body-trend">
-      <h3>{t("Body trends", "Динамика замеров")}</h3>
-      {weights.length ? (
-        <p>
-          {weeks.map((week) => {
-            const values = weights.filter((c) => monday(c.date) === week);
-            return (
-              <span key={week}>
-                {t(`Week of ${dateText(week)}`, `Неделя с ${dateText(week)}`)}:{" "}
-                <strong>
-                  {number(
-                    values.reduce((sum, c) => sum + c.weight!, 0) /
-                      values.length,
-                  )}{" "}
-                  {label("kg")}
-                </strong>{" "}
-                {t(
-                  `average (${values.length} measurements).`,
-                  `в среднем (замеров: ${values.length}).`,
-                )}{" "}
-              </span>
-            );
-          })}
-        </p>
-      ) : (
-        <p>
-          {t(
-            "Add weight in a daily check-in to compare weekly averages.",
-            "Укажите вес в ежедневной отметке, чтобы сравнивать средние значения за неделю.",
-          )}
-        </p>
-      )}
-      {waists.length > 0 && (
-        <p>
-          {t("Latest waist:", "Последний замер талии:")}{" "}
-          <strong>
-            {number(waists.at(-1)!.waist!)} {label("cm")}
-          </strong>{" "}
-          · {dateText(waists.at(-1)!.date)}.
-        </p>
-      )}
-      {energies.length > 0 && (
-        <p>
-          {t("Average energy / wellbeing:", "Среднее самочувствие:")}{" "}
-          <strong>
-            {number(
-              energies.reduce((sum, c) => sum + c.energy!, 0) / energies.length,
-            )}{" "}
-            / 5
-          </strong>{" "}
-          {t(
-            `(${energies.length} check-ins).`,
-            `(отметок: ${energies.length}).`,
-          )}
-        </p>
-      )}
-      <small>
-        {t(
-          "Individual readings fluctuate. Goals only change when you edit them.",
-          "Отдельные замеры колеблются. Цели меняются только вручную.",
-        )}
-      </small>
-    </div>
-  );
-}
-
-function DailyCheckIn({
-  date,
-  initial,
-  onSaved,
-}: {
-  date: string;
-  initial?: CheckIn;
-  onSaved: () => void;
-}) {
-  const { t, messageText } = useGoalText();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const fields = [
-    {
-      key: "beverages",
-      label: t("Drinks total (ml)", "Всего напитков (мл)"),
-      max: 20000,
-    },
-    { key: "weight", label: t("Weight (kg)", "Вес (кг)"), max: 500 },
-    { key: "waist", label: t("Waist (cm)", "Талия (см)"), max: 300 },
-    { key: "sleep", label: t("Sleep (hours)", "Сон (часы)"), max: 24 },
-    {
-      key: "energy",
-      label: t("Energy / wellbeing (1–5)", "Самочувствие (1–5)"),
-      max: 5,
-    },
-  ];
-  return (
-    <details className="panel daily-checkin">
-      <summary>
-        {t("Daily check-in", "Ежедневная отметка")}{" "}
-        <span>
-          {initial?.complete
-            ? t("Complete", "Завершено")
-            : t("Drinks & body measurements", "Напитки и замеры")}
-        </span>
-      </summary>
-      <form
-        onSubmit={async (event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          const input: Record<string, unknown> = {
-            date,
-            complete: form.get("complete") === "on",
-          };
-          for (const field of fields) {
-            const raw = form.get(field.key);
-            if (raw !== "" && raw !== null) input[field.key] = Number(raw);
-          }
-          setBusy(true);
-          setMessage("");
-          try {
-            await action("save_checkin" as Action, input);
-            onSaved();
-          } catch (e) {
-            setMessage(errorText(e));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <p>
-          {t(
-            "Enter totals for this day, not amounts to add. Leave unknown values blank.",
-            "Введите итог за день, а не количество для добавления. Неизвестные значения оставьте пустыми.",
-          )}
-        </p>
-        <div className="goal-form-grid">
-          {fields.map((field) => (
-            <label className="field" key={field.key}>
-              <span>{field.label}</span>
-              <input
-                type="number"
-                name={field.key}
-                min={field.key === "energy" ? 1 : 0}
-                max={field.max}
-                step={field.key === "energy" ? 1 : "any"}
-                defaultValue={
-                  (initial as unknown as Record<string, number> | undefined)?.[
-                    field.key
-                  ] ?? ""
-                }
-              />
-            </label>
-          ))}
-        </div>
-        <label className="goal-complete">
-          <input
-            type="checkbox"
-            name="complete"
-            defaultChecked={initial?.complete}
-          />{" "}
-          {t("I have finished logging this day", "Я записал всё за этот день")}
-        </label>
-        <button className="primary" disabled={busy}>
-          {busy
-            ? t("Saving…", "Сохранение…")
-            : t("Save check-in", "Сохранить отметку")}
-        </button>
-        {message && <p role="alert">{messageText(message)}</p>}
-      </form>
-    </details>
   );
 }
 
@@ -826,12 +575,6 @@ export function GoalAdmin({ today }: { today: string }) {
         {t(
           "Your starting plan: 2,100 kcal, 160 g protein, 70 g fat and 208 g carbohydrates. Edit any target below. These are manually controlled starting targets, not automatic dietary advice.",
           "Стартовый план: 2 100 ккал, 160 г белка, 70 г жиров и 208 г углеводов. Измените цели ниже. Это начальные ориентиры с ручной настройкой, а не автоматические рекомендации по питанию.",
-        )}
-      </p>
-      <p>
-        {t(
-          "Record body measurements in your private daily check-in; they do not automatically adjust goals.",
-          "Записывайте замеры в личной ежедневной отметке; они не меняют цели автоматически.",
         )}
       </p>
       {settings && (

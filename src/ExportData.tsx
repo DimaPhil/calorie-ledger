@@ -59,8 +59,8 @@ export function ExportData() {
       <summary>{t("Export data", "Экспорт данных")}</summary>
       <p>
         {t(
-          "Download all recorded history, regardless of the chart interval: daily nutrition, journal entries, foods, dishes, targets and check-ins. Missing values remain blank, with completeness flags for analysis.",
-          "Скачайте всю историю независимо от периода графиков: питание по дням, записи журнала, продукты, блюда, цели и отметки. Неизвестные значения остаются пустыми; полнота данных указана отдельно.",
+          "Download all recorded history, regardless of the chart interval: daily nutrition, journal entries, foods, dishes, targets. Missing values remain blank, with completeness flags for analysis.",
+          "Скачайте всю историю независимо от периода графиков: питание по дням, записи журнала, продукты, блюда, цели. Неизвестные значения остаются пустыми; полнота данных указана отдельно.",
         )}
       </p>
       <p>
