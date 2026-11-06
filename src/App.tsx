@@ -1833,10 +1833,6 @@ function EntryRow({
       <article className="entry">
         <button
           className="entry-open"
-          aria-label={t(
-            `View entry: ${entry.name}`,
-            `Открыть запись: ${entry.name}`,
-          )}
           onClick={() => {
             setDraft(structuredClone(entry));
             setComponentAmount(entry.amount);

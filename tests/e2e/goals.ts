@@ -14,6 +14,9 @@ export async function checkGoals(page: Page, info: TestInfo) {
     return response.json();
   };
   const day = "2026-02-10";
+  const existing = await post("get_stats", { start: day, end: day });
+  for (const entry of existing.entries)
+    await post("delete_entry", { id: entry.id });
   await post("save_goals", { effectiveDate: day, targets: defaultGoals });
   const product = await post("save_product", {
     product: {

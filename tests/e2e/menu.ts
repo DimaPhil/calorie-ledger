@@ -6,7 +6,13 @@ export async function checkMenu(page: Page, info: TestInfo) {
   await expect(page.locator(".menu-card")).toHaveCount(22);
   // Menu imports use real saved-food nutrition and never log a meal.
   await page
-    .getByRole("button", { name: "Open recipe: Tuna & spinach frittata" })
+    .getByRole("button", { name: /Tuna & spinach frittata/ })
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Tuna & spinach frittata",
+        exact: true,
+      }),
+    })
     .click();
   await page.getByLabel("Number of servings").selectOption("2");
   await page.getByRole("button", { name: "Save as dish", exact: true }).click();
@@ -60,8 +66,11 @@ export async function checkMenu(page: Page, info: TestInfo) {
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByLabel("Find a recipe or ingredient").fill("frittata");
   await expect(page.locator(".menu-card")).toHaveCount(1);
-  const recipe = page.getByRole("button", {
-    name: "Open recipe: Tuna & spinach frittata",
+  const recipe = page.locator(".menu-open").filter({
+    has: page.getByRole("heading", {
+      name: "Tuna & spinach frittata",
+      exact: true,
+    }),
   });
   await recipe.focus();
   await page.keyboard.press("Enter");
@@ -87,7 +96,7 @@ export async function checkMenu(page: Page, info: TestInfo) {
   await page.keyboard.press("Escape");
   await expect(recipe).toBeFocused();
   await page
-    .getByRole("button", { name: "Favorite: Tuna & spinach frittata" })
+    .getByRole("button", { name: "☆ Save favorite: Tuna & spinach frittata" })
     .click();
   await page.getByRole("button", { name: "Journal", exact: true }).click();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
@@ -111,7 +120,13 @@ export async function checkMenu(page: Page, info: TestInfo) {
 
   // The global choice updates an open recipe across tabs without losing its state.
   await page
-    .getByRole("button", { name: "Open recipe: Tuna & spinach frittata" })
+    .getByRole("button", { name: /Tuna & spinach frittata/ })
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Tuna & spinach frittata",
+        exact: true,
+      }),
+    })
     .click();
   await page.getByLabel("Number of servings").selectOption("2");
   await page.getByLabel("Step 1 complete").check();

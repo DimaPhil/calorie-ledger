@@ -54,9 +54,8 @@ test("saved food correction updates a linked journal entry through the UI", asyn
   await page.getByRole("dialog").getByRole("button", { name: /Save/ }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "Journal", exact: true }).click();
-  const row = page.getByRole("button", {
-    name: `View entry: ${name}`,
-    exact: true,
+  const row = page.locator(".entry-open").filter({
+    has: page.getByText(name, { exact: true }),
   });
   await expect(row).toContainText("100");
   await row.click();
@@ -174,9 +173,8 @@ test("journal detail modal edits component snapshots without changing saved food
     })
   ).json();
   await page.reload();
-  const opener = page.getByRole("button", {
-    name: `View entry: Modal oats ${info.project.name}`,
-    exact: true,
+  const opener = page.locator(".entry-open").filter({
+    has: page.getByText(`Modal oats ${info.project.name}`, { exact: true }),
   });
   await opener.focus();
   await opener.press("Enter");
@@ -244,9 +242,11 @@ test("journal detail modal edits component snapshots without changing saved food
       .calories,
   ).toBe(100);
   await page
-    .getByRole("button", {
-      name: `View entry: Corrected meal ${info.project.name}`,
-      exact: true,
+    .locator(".entry-open")
+    .filter({
+      has: page.getByText(`Corrected meal ${info.project.name}`, {
+        exact: true,
+      }),
     })
     .click();
   await dialog.getByRole("button", { name: "Edit entry", exact: true }).click();
