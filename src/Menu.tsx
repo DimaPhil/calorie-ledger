@@ -196,11 +196,7 @@ export function Menu({
         <div className="menu-grid">
           {recipes.map((r) => (
             <article className="menu-card" key={r.id}>
-              <button
-                className="menu-open"
-                onClick={() => setSelected(r.id)}
-                aria-label={`${t("Open recipe", "Открыть рецепт")}: ${r.title}`}
-              >
+              <button className="menu-open" onClick={() => setSelected(r.id)}>
                 <img
                   src={`/menu/${r.id}.svg`}
                   loading="lazy"
@@ -227,7 +223,7 @@ export function Menu({
               </button>
               <button
                 className="menu-favorite"
-                aria-label={`${t("Favorite", "Избранное")}: ${r.title}`}
+                aria-label={`${favorites.includes(r.id) ? t("★ Saved", "★ В избранном") : t("☆ Save favorite", "☆ В избранное")}: ${r.title}`}
                 aria-pressed={favorites.includes(r.id)}
                 onClick={() => favorite(r.id)}
               >
