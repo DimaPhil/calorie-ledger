@@ -16,15 +16,23 @@ Use the connected Calorie Ledger MCP tools. For Claude custom connectors, use th
 4. External search candidates are previews, not saved IDs. Strip `id` and `updatedAt`, call `save_product` with the chosen product fields, and use its returned ID. Save an explicitly confirmed preference with `remember_choice`. This also helps later searches avoid repeated questions.
 5. When data is missing or `clarification_required`, ask one concise question covering the missing fields. Do not invent missing nutrition, density, serving weight, or unreadable label values. If the provider is down, say so and offer saved foods, another search, or a custom label. Do not claim that a provider failure proves the food does not exist.
 6. Call `log_food` only for a logging request, with a confirmed productId OR dishId, positive amount, unit, local date, meal, and an `idempotencyKey` unique to this intended entry. Generate the key once, keep it through timeouts/retries, and use a new one for a genuinely new entry. An `idempotency_conflict` means arguments changed: inspect the prior attempt before making another entry. `resolve_food` and previews do not save a log. A ready result or suggested next logging action from `resolve_food` means the inputs are usable, not that the user authorized logging.
-7. Confirm the food, amount, date, and calories returned by the successful log in one short sentence, then use the **Daily summary format** below. Never say “logged” or present a failed request's totals as updated after a search, preview, clarification, or failed call.
+7. Confirm successful logs using the **Per-food nutrition format** below, then use the **Daily summary format** once after all requested foods. Never say “logged” or present a failed request's totals as updated after a search, preview, clarification, or failed call.
+
+## Per-food nutrition format
+
+For every product, food, or dish requested, show one separate compact line with its name, amount, calories, protein, fat, carbs, saturated fat, and fiber, in that order. Use nutrition for the requested portion, not per-100g values or the whole recipe unless that is the requested amount. Use returned entry or preview nutrition; never derive individual foods from daily totals. Match the user's language, round calories to whole numbers and grams to at most one decimal, and label unknown values as unknown rather than zero. For an incomplete calculated subtotal, say “at least X (incomplete)”. Keep all six nutrient fields visible even when some are unknown.
+
+Line template: `Name (amount) — X kcal · protein X g · fat X g · carbs X g · saturated fat X g · fiber X g`.
+
+For “log strawberry pop and chicken thighs”, show two lines in request order: one for strawberry pop and one for chicken thighs, each with its own portion nutrition, then today's summary once. A requested dish gets one line for its eaten portion; do not replace it with ingredient lines. Confirm the entry date, explicitly if it differs from today. If an item fails or still needs clarification, identify its status without claiming it was logged or inventing nutrition. For previews and comparisons, use the same per-food lines while retaining the preview-only wording and distinguishing hypothetical nutrition from actual daily intake.
 
 ## Daily summary format
 
 Use this same compact format after every successful logging request. Do not alternate between tables, bullet lists and cards from message to message. Match the user's language; keep the layout and nutrient order unchanged. Use **Today so far** (Russian: **Итого за сегодня**) as the heading.
 
-- When the client supports inline visual cards, use a responsive two-column grid: **Calories | Protein**, then **Fat | Carbs**, then **Saturated fat**. Stack in that order on narrow screens. Each card has a small nutrient label, **consumed / target unit · percentage%**, and one thin, neutral progress bar underneath. Emphasize consumed; keep target and percentage secondary. No axes, legends, extra icons or separate percentage column. Use the client's supported rendering mechanism; do not output raw HTML into a chat that cannot render it or create a separate downloadable dashboard for an ordinary log reply.
-- Below the five cards, show one line: **Fiber: consumed / target g · percentage%**. Do not repeat the same totals in a table or prose. Omit unsolicited remaining-calorie lists and motivational commentary; a necessary incomplete-data note may follow separately.
-- If inline cards are unavailable, always use the text template below: five aligned rows in one code block with ten-segment bars, then fiber on one line below. Once a rendering mode works in the conversation, keep it for subsequent summaries unless the user requests a change. Use `█` for filled segments and `░` for empty segments; filled count is `round(clamp(consumed / target, 0, 1) × 10)`. For visual cards use the same clamped ratio as the bar width, without segment rounding.
+- When the client supports inline visual cards, use a responsive two-column grid: **Calories | Protein**, then **Fat | Carbs**, then **Saturated fat | Fiber**. Stack in that order on narrow screens. Each card has a small nutrient label, **consumed / target unit · percentage%**, and one thin, neutral progress bar underneath. Emphasize consumed; keep target and percentage secondary. No axes, legends, extra icons or separate percentage column. Use the client's supported rendering mechanism; do not output raw HTML into a chat that cannot render it or create a separate downloadable dashboard for an ordinary log reply.
+- Do not repeat the same totals in a table or prose. Omit unsolicited remaining-calorie lists and motivational commentary; a necessary incomplete-data note may follow separately.
+- If inline cards are unavailable, always use the text template below: six aligned rows in one code block with ten-segment bars, including fiber. Once a rendering mode works in the conversation, keep it for subsequent summaries unless the user requests a change. Use `█` for filled segments and `░` for empty segments; filled count is `round(clamp(consumed / target, 0, 1) × 10)`. For visual cards use the same clamped ratio as the bar width, without segment rounding.
 
 Text-only example (illustrative values, not defaults):
 
@@ -35,8 +43,8 @@ Protein        66.5 / 160 g     · 42%  ████░░░░░░
 Fat            25.2 / 70 g      · 36%  ████░░░░░░
 Carbs          55 / 208 g       · 26%  ███░░░░░░░
 Saturated fat  8 / 20 g         · 40%  ████░░░░░░
+Fiber          14.2 / 30 g      · 47%  █████░░░░░
 ```
-**Fiber:** 14.2 / 30 g · 47%
 
 Include `saturatedFat` in every daily summary using the same progress and completeness rules as the other nutrients. Its target is an upper limit: the percentage and bar show the limit used, not a goal to reach. Russian label: **Насыщенные жиры**.
 
